@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.PROD 
-  ? 'http://localhost:5001/api' 
-  : 'http://localhost:5001/api';
+  ? 'https://admin-1-v5vd.onrender.com/api' 
+  : 'https://admin-1-v5vd.onrender.com/api';
 
 // Create axios instance
 export const adminApi = axios.create({
