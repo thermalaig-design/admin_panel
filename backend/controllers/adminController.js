@@ -587,3 +587,94 @@ export const deleteReferral = async (req, res, next) => {
     next(error);
   }
 };
+
+// ==================== SPONSORS TABLE CRUD ====================
+
+export const getAllSponsors = async (req, res, next) => {
+  try {
+    // Check if this is a public route (not admin route)
+    // Public route: /api/sponsors, Admin route: /api/admin/sponsors
+    const isAdminRoute = req.originalUrl.includes('/api/admin/sponsors');
+    // For public routes, only show active sponsors; admin can see all
+    const onlyActive = !isAdminRoute;
+    
+    const sponsors = await adminService.getAllSponsors(onlyActive);
+    res.status(200).json({
+      success: true,
+      count: sponsors.length,
+      data: sponsors
+    });
+  } catch (error) {
+    console.error('Error in getAllSponsors controller:', error);
+    next(error);
+  }
+};
+
+export const getSponsorById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const sponsor = await adminService.getSponsorById(id);
+    if (!sponsor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sponsor not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      data: sponsor
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createSponsor = async (req, res, next) => {
+  try {
+    const sponsor = await adminService.createSponsor(req.body);
+    res.status(201).json({
+      success: true,
+      data: sponsor
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateSponsor = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const sponsor = await adminService.updateSponsor(id, req.body);
+    if (!sponsor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sponsor not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      data: sponsor
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteSponsor = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deleted = await adminService.deleteSponsor(id);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sponsor not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Sponsor deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};

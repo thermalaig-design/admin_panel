@@ -3,6 +3,7 @@ import { Database, Calendar, HeartPulse, Stethoscope, Activity, Users, Building2
 import NotificationsSection from './admin/components/NotificationsSection';
 import { getAllAppointmentsAdmin, getAllReferralsAdmin } from './admin/services/adminApi';
 import { getAllNotifications } from './services/notificationsApi';
+import SponsorSection from './components/SponsorSection';
 
 const Home = ({ onNavigate, onLogout }) => {
   const [statsData, setStatsData] = useState({
@@ -10,10 +11,6 @@ const Home = ({ onNavigate, onLogout }) => {
     referrals: 0,
     notifications: 0
   });
-
-  useEffect(() => {
-    loadStatsData();
-  }, []);
 
   const loadStatsData = async () => {
     try {
@@ -32,6 +29,10 @@ const Home = ({ onNavigate, onLogout }) => {
       console.error('Error loading stats:', error);
     }
   };
+
+  useEffect(() => {
+    loadStatsData();
+  }, []);
 
   const adminActions = [
     { 
@@ -178,6 +179,11 @@ const Home = ({ onNavigate, onLogout }) => {
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Sponsor Section */}
+        <div className="mt-8 lg:mt-12">
+          <SponsorSection />
         </div>
       </main>
     </div>

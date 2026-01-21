@@ -52,5 +52,14 @@ router.post('/referrals', adminController.createReferral);
 router.put('/referrals/:id', adminController.updateReferral);
 router.delete('/referrals/:id', adminController.deleteReferral);
 
+// Sponsors routes (admin only)
+router.get('/sponsors', adminController.getAllSponsors);
+router.get('/sponsors/:id', adminController.getSponsorById);
+router.post('/sponsors', adminController.createSponsor);
+router.put('/sponsors/:id', adminController.updateSponsor);
+router.delete('/sponsors/:id', adminController.deleteSponsor);
+
+
+
 export default router;
 

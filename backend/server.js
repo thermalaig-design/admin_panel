@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import adminRoutes from './routes/adminRoutes.js';
+import sponsorsRoutes from './routes/sponsorsRoutes.js';
 
 // ES module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -17,7 +18,7 @@ dotenv.config();
 
 // Initialize express app
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.BACKEND_PORT || 5002;
 
 // --------------------
 // MIDDLEWARE
@@ -64,7 +65,11 @@ app.get('/api', (req, res) => {
 // --------------------
 // API ROUTES
 // --------------------
+console.log('Registering admin routes...');
 app.use('/api/admin', adminRoutes); // Admin routes
+console.log('Registering sponsors routes...');
+app.use('/api/sponsors', sponsorsRoutes); // Sponsors routes
+console.log('All routes registered');
 
 // --------------------
 // ERROR HANDLING

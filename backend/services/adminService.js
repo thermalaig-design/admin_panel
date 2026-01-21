@@ -938,3 +938,111 @@ export const deleteReferral = async (id) => {
   }
 };
 
+// ==================== SPONSORS TABLE CRUD ====================
+
+export const getAllSponsors = async (onlyActive = false) => {
+  try {
+    let query = supabase
+      .from('sponsors')
+      .select('*');
+    
+    // Filter active sponsors only for public display
+    if (onlyActive) {
+      query = query.eq('is_active', true);
+    }
+    
+    const { data, error } = await query
+      .order('priority', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching all sponsors:', error);
+    throw error;
+  }
+};
+
+export const getSponsorById = async (id) => {
+  try {
+    const { data, error } = await supabase
+      .from('sponsors')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error fetching sponsor by ID:', error);
+    throw error;
+  }
+};
+
+export const createSponsor = async (sponsorData) => {
+  try {
+    // Check if a sponsor already exists (since only one sponsor is allowed)
+    const { data: existingSponsors, error: existingError } = await supabase
+      .from('sponsors')
+      .select('id');
+
+    if (existingError) throw existingError;
+    
+    // If a sponsor already exists, we shouldn't create another
+    if (existingSponsors && existingSponsors.length > 0) {
+      throw new Error('A sponsor already exists. Only one sponsor is allowed.');
+    }
+    
+    const { data, error } = await supabase
+      .from('sponsors')
+      .insert([{
+        ...sponsorData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: sponsorData.created_by || 'system'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error creating sponsor:', error);
+    throw error;
+  }
+};
+
+export const updateSponsor = async (id, sponsorData) => {
+  try {
+    const { data, error } = await supabase
+      .from('sponsors')
+      .update({
+        ...sponsorData,
+        updated_at: new Date().toISOString(),
+        updated_by: sponsorData.updated_by || 'system'
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error updating sponsor:', error);
+    throw error;
+  }
+};
+
+export const deleteSponsor = async (id) => {
+  try {
+    const { error } = await supabase
+      .from('sponsors')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting sponsor:', error);
+    throw error;
+  }
+};
