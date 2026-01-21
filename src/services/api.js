@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = '/api'; // Using proxy in vite.config.js to forward to backend server
+const API_BASE_URL = 'https://admin-self-seven.vercel.app/api'; // Using proxy in vite.config.js to forward to backend server
 
 // Create axios instance
 export const api = axios.create({

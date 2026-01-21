@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.PROD 
-  ? 'https://admin-1-v5vd.onrender.com/api' 
+  ? 'https://admin-self-seven.vercel.app/api' 
   : '/api'; // Use proxy in development
 
 // Create axios instance
