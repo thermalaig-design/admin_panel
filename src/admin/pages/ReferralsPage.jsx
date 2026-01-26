@@ -3,7 +3,7 @@ import {
     HeartPulse, Search, Trash2, X, 
     CheckCircle2, AlertTriangle, Clock, 
     User, Phone, Calendar, Users,
-    RefreshCw, BadgeCheck, ChevronRight, Sparkles
+    RefreshCw, BadgeCheck, ChevronRight, Sparkles, MessageSquare, Loader
   } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import ReferralDetailPage from './ReferralDetailPage';
@@ -25,6 +25,11 @@ const ReferralsPage = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [selectedReferral, setSelectedReferral] = useState(null);
   const [showDetailPage, setShowDetailPage] = useState(false);
+
+  // Remark Modal State
+  const [showRemarkModal, setShowRemarkModal] = useState(null);
+  const [remarkText, setRemarkText] = useState('');
+  const [remarkLoading, setRemarkLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -131,6 +136,29 @@ const ReferralsPage = () => {
     } catch (error) {
       console.error('Error deleting referral:', error);
       alert(`Failed to delete referral: ${error.message}`);
+    }
+  };
+
+  const openRemarkModal = (e, referral) => {
+    e.stopPropagation();
+    setRemarkText(referral.remark || '');
+    setShowRemarkModal(referral);
+  };
+
+  const handleSaveRemark = async () => {
+    try {
+      setRemarkLoading(true);
+      await updateReferral(showRemarkModal.id, { remark: remarkText });
+      setReferrals(prev => prev.map(ref => 
+        ref.id === showRemarkModal.id ? { ...ref, remark: remarkText } : ref
+      ));
+      setShowRemarkModal(null);
+      setRemarkText('');
+    } catch (err) {
+      console.error('Error saving remark:', err);
+      alert('Failed to save remark: ' + err.message);
+    } finally {
+      setRemarkLoading(false);
     }
   };
 
@@ -347,31 +375,27 @@ const ReferralsPage = () => {
                       <button
                         onClick={(e) => handleStatusChange(e, referral.id, 'Approved')}
                         disabled={referral.status === 'Approved'}
-                        className={`py-2 px-1 rounded-xl text-[11px] font-semibold transition-all ${
+                        className={`py-2 px-1 rounded-xl text-[10px] font-semibold transition-all ${
                           referral.status === 'Approved'
-                            ? 'bg-emerald-100 text-emerald-400 cursor-not-allowed'
+                            ? 'bg-emerald-100 text-emerald-400 cursor-not-allowed border border-emerald-100'
                             : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 shadow-sm hover:shadow'
                         }`}
                       >
                         Approve
                       </button>
                       <button
-                        onClick={(e) => handleStatusChange(e, referral.id, 'Pending')}
-                        disabled={referral.status === 'Pending'}
-                        className={`py-2 px-1 rounded-xl text-[11px] font-semibold transition-all ${
-                          referral.status === 'Pending'
-                            ? 'bg-amber-100 text-amber-400 cursor-not-allowed'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50 shadow-sm hover:shadow'
-                        }`}
+                        onClick={(e) => openRemarkModal(e, referral)}
+                        className="py-2 px-1 bg-white text-blue-600 border border-slate-200 rounded-xl text-[10px] font-semibold hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50 shadow-sm hover:shadow transition-all flex flex-col items-center justify-center"
                       >
-                        Pending
+                        <MessageSquare className="h-3 w-3 mb-0.5" />
+                        Remark
                       </button>
                       <button
                         onClick={(e) => handleStatusChange(e, referral.id, 'Completed')}
                         disabled={referral.status === 'Completed'}
-                        className={`py-2 px-1 rounded-xl text-[11px] font-semibold transition-all ${
+                        className={`py-2 px-1 rounded-xl text-[10px] font-semibold transition-all ${
                           referral.status === 'Completed'
-                            ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
+                            ? 'bg-blue-100 text-blue-400 cursor-not-allowed border border-blue-100'
                             : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 shadow-sm hover:shadow'
                         }`}
                       >
@@ -382,7 +406,7 @@ const ReferralsPage = () => {
                           e.stopPropagation();
                           setShowDeleteConfirm(referral.id);
                         }}
-                        className="py-2 px-1 bg-white text-slate-500 border border-slate-200 rounded-xl text-[11px] font-semibold hover:border-rose-300 hover:text-rose-500 hover:bg-rose-50 shadow-sm hover:shadow transition-all"
+                        className="py-2 px-1 bg-white text-slate-500 border border-slate-200 rounded-xl text-[10px] font-semibold hover:border-rose-300 hover:text-rose-500 hover:bg-rose-50 shadow-sm hover:shadow transition-all"
                       >
                         Delete
                       </button>
@@ -429,6 +453,58 @@ const ReferralsPage = () => {
                 className="flex-1 px-4 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl hover:shadow-lg hover:shadow-rose-200 transition-all font-semibold text-sm"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remark Modal */}
+      {showRemarkModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
+            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <MessageSquare className="h-8 w-8 text-blue-600" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 text-center mb-2">Add Remark</h3>
+            <p className="text-slate-500 text-center text-sm mb-8">
+              Add a private remark for <span className="font-semibold text-slate-700">{showRemarkModal.patient_name}</span>
+            </p>
+            
+            <div className="mb-8">
+              <textarea
+                value={remarkText}
+                onChange={(e) => setRemarkText(e.target.value)}
+                placeholder="Enter your remark here..."
+                rows={4}
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-100 focus:border-blue-300 outline-none transition-all resize-none text-sm text-slate-700"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRemarkModal(null);
+                  setRemarkText('');
+                }}
+                disabled={remarkLoading}
+                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-semibold text-slate-600 text-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveRemark}
+                disabled={remarkLoading}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {remarkLoading ? (
+                  <>
+                    <Loader className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Remark'
+                )}
               </button>
             </div>
           </div>

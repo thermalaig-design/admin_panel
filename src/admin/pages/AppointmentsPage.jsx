@@ -3,7 +3,7 @@ import {
   Calendar, User, Phone, Mail, MapPin, Clock, Users, Search, 
   Filter, Plus, Edit2, Trash2, CheckCircle2, XCircle, RotateCcw, 
   Eye, Save, X, ArrowLeft, ChevronLeft, Stethoscope, FileText, 
-  ChevronRight, BadgeCheck, AlertTriangle, RefreshCw, Loader
+  ChevronRight, BadgeCheck, AlertTriangle, RefreshCw, Loader, MessageSquare
 } from 'lucide-react';
 import { 
   getAllAppointmentsAdmin, 
@@ -28,6 +28,11 @@ const AppointmentsPage = () => {
   const [showRescheduleModal, setShowRescheduleModal] = useState(null);
   const [rescheduleData, setRescheduleData] = useState({ date: '', time: '' });
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+
+  // Remark Modal State
+  const [showRemarkModal, setShowRemarkModal] = useState(null);
+  const [remarkText, setRemarkText] = useState('');
+  const [remarkLoading, setRemarkLoading] = useState(false);
 
   useEffect(() => {
     loadAppointments();
@@ -144,6 +149,29 @@ const AppointmentsPage = () => {
       alert('Failed to reschedule appointment: ' + err.message);
     } finally {
       setRescheduleLoading(false);
+    }
+  };
+
+  const openRemarkModal = (e, appointment) => {
+    e.stopPropagation();
+    setRemarkText(appointment.remark || '');
+    setShowRemarkModal(appointment);
+  };
+
+  const handleSaveRemark = async () => {
+    try {
+      setRemarkLoading(true);
+      await updateAppointment(showRemarkModal.id, { remark: remarkText });
+      setAppointments(prev => prev.map(app => 
+        app.id === showRemarkModal.id ? { ...app, remark: remarkText } : app
+      ));
+      setShowRemarkModal(null);
+      setRemarkText('');
+    } catch (err) {
+      console.error('Error saving remark:', err);
+      alert('Failed to save remark: ' + err.message);
+    } finally {
+      setRemarkLoading(false);
     }
   };
 
@@ -398,7 +426,7 @@ const AppointmentsPage = () => {
                         <button
                           onClick={(e) => handleStatusChange(e, appointment.id, 'Confirmed')}
                           disabled={appointment.status === 'Confirmed'}
-                          className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-medium transition-all ${
+                          className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] font-medium transition-all ${
                             appointment.status === 'Confirmed'
                               ? 'text-emerald-400 cursor-not-allowed'
                               : 'text-emerald-600 hover:text-emerald-700'
@@ -408,20 +436,15 @@ const AppointmentsPage = () => {
                           Accept
                         </button>
                         <button
-                          onClick={(e) => handleStatusChange(e, appointment.id, 'Pending')}
-                          disabled={appointment.status === 'Pending'}
-                          className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-medium transition-all ${
-                            appointment.status === 'Pending'
-                              ? 'text-amber-400 cursor-not-allowed'
-                              : 'text-amber-600 hover:text-amber-700'
-                          }`}
+                          onClick={(e) => openRemarkModal(e, appointment)}
+                          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] font-medium transition-all text-blue-600 hover:text-blue-700"
                         >
-                          <Clock className="h-4 w-4 mb-0.5" />
-                          Pending
+                          <MessageSquare className="h-4 w-4 mb-0.5" />
+                          Remark
                         </button>
                         <button
                           onClick={(e) => openRescheduleModal(e, appointment)}
-                          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-medium transition-all text-purple-600 hover:text-purple-700"
+                          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] font-medium transition-all text-purple-600 hover:text-purple-700"
                         >
                           <RotateCcw className="h-4 w-4 mb-0.5" />
                           Reschedule
@@ -431,7 +454,7 @@ const AppointmentsPage = () => {
                             e.stopPropagation();
                             setShowDeleteConfirm(appointment.id);
                           }}
-                          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-medium text-red-600 hover:text-red-700 transition-all"
+                          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] font-medium text-red-600 hover:text-red-700 transition-all"
                         >
                           <Trash2 className="h-4 w-4 mb-0.5" />
                           Delete
@@ -541,6 +564,58 @@ const AppointmentsPage = () => {
                   </>
                 ) : (
                   'Reschedule'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remark Modal */}
+      {showRemarkModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <MessageSquare className="h-6 w-6 text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">Add Remark</h3>
+            <p className="text-gray-500 text-center mb-6">
+              Add a private remark for <span className="font-semibold text-gray-700">{showRemarkModal.patient_name}</span>
+            </p>
+            
+            <div className="mb-6">
+              <textarea
+                value={remarkText}
+                onChange={(e) => setRemarkText(e.target.value)}
+                placeholder="Enter your remark here..."
+                rows={4}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRemarkModal(null);
+                  setRemarkText('');
+                }}
+                disabled={remarkLoading}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveRemark}
+                disabled={remarkLoading}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {remarkLoading ? (
+                  <>
+                    <Loader className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Remark'
                 )}
               </button>
             </div>
