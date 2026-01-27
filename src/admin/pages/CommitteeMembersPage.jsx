@@ -121,6 +121,7 @@ const CommitteeMembersPage = ({ onNavigate }) => {
       { key: 'committee_name_english', label: 'Committee Name (English)' },
       { key: 'committee_name_hindi', label: 'Committee Name (Hindi)' },
       { key: 'member_role', label: 'Member Role' },
+      { key: 'membership_number', label: 'Membership Number' },
     ];
     
     return (
@@ -203,6 +204,9 @@ const CommitteeMembersPage = ({ onNavigate }) => {
               )}
               {item.member_role && (
                 <p><span className="font-medium">Role:</span> {item.member_role}</p>
+              )}
+              {item.membership_number && (
+                <p><span className="font-medium">Membership #:</span> {item.membership_number}</p>
               )}
             </div>
           </div>

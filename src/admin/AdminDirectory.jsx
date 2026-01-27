@@ -340,6 +340,7 @@ const AdminDirectory = () => {
           { key: 'committee_name_english', label: 'Committee Name (English)' },
           { key: 'committee_name_hindi', label: 'Committee Name (Hindi)' },
           { key: 'member_role', label: 'Member Role' },
+          { key: 'membership_number', label: 'Membership Number' },
         ];
       case 'doctors':
         return [
@@ -374,6 +375,7 @@ const AdminDirectory = () => {
               {item.hospital_type && <p><span className="font-medium">Type:</span> {item.hospital_type}</p>}
               {item.position && <p><span className="font-medium">Position:</span> {item.position}</p>}
               {item.member_role && <p><span className="font-medium">Role:</span> {item.member_role}</p>}
+              {item.membership_number && <p><span className="font-medium">Membership #:</span> {item.membership_number}</p>}
               {item.designation && <p><span className="font-medium">Designation:</span> {item.designation}</p>}
               {item.Mobile && (
                 <div className="flex items-center gap-2">
