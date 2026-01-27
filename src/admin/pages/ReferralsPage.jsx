@@ -123,6 +123,12 @@ const ReferralsPage = () => {
     e.stopPropagation();
     try {
       await updateReferral(referralId, { status: newStatus });
+      
+      // Show success toast
+      setSuccessMessage(`Referral ${newStatus.toLowerCase()} successfully!`);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
       loadData();
     } catch (error) {
       console.error('Error updating referral status:', error);
@@ -133,6 +139,12 @@ const ReferralsPage = () => {
   const handleDelete = async (referralId) => {
     try {
       await deleteReferral(referralId);
+      
+      // Show success toast
+      setSuccessMessage('Referral deleted successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
       loadData();
       setShowDeleteConfirm(null);
     } catch (error) {

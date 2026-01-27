@@ -99,6 +99,11 @@ const AppointmentsPage = () => {
       setAppointments(prev => prev.map(app => 
         app.id === appointmentId ? { ...app, status: newStatus } : app
       ));
+      
+      // Show success toast
+      setSuccessMessage(`Appointment ${newStatus.toLowerCase()} successfully!`);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (err) {
       console.error('Error updating appointment status:', err);
       alert('Failed to update status: ' + err.message);
@@ -110,6 +115,11 @@ const AppointmentsPage = () => {
       await deleteAppointment(appointmentId);
       setAppointments(prev => prev.filter(app => app.id !== appointmentId));
       setShowDeleteConfirm(null);
+      
+      // Show success toast
+      setSuccessMessage('Appointment deleted successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (err) {
       console.error('Error deleting appointment:', err);
       alert('Failed to delete appointment: ' + err.message);
@@ -146,6 +156,11 @@ const AppointmentsPage = () => {
       ));
       setShowRescheduleModal(null);
       setRescheduleData({ date: '', time: '' });
+      
+      // Show success toast
+      setSuccessMessage('Appointment rescheduled successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (err) {
       console.error('Error rescheduling appointment:', err);
       alert('Failed to reschedule appointment: ' + err.message);

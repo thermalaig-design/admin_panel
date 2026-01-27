@@ -13,6 +13,8 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
   const [currentApp, setCurrentApp] = useState(appointment);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const getStatusConfig = (status) => {
     if (!status) return { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-500' };
@@ -50,6 +52,12 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
     try {
       await updateAppointment(currentApp.id, { status: newStatus });
       setCurrentApp(prev => ({ ...prev, status: newStatus }));
+      
+      // Show success toast
+      setSuccessMessage(`Appointment ${newStatus.toLowerCase()} successfully!`);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Error updating appointment status:', error);
@@ -388,11 +396,22 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
                 Delete
               </button>
             </div>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-};
+        )}
+        {/* Success Toast */}
+        {showSuccessToast && (
+          <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300">
+            <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-500/50">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-white" />
+              </div>
+              <p className="font-semibold">{successMessage}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
 export default AppointmentDetailPage;
