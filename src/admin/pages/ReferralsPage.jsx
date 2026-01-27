@@ -30,6 +30,8 @@ const ReferralsPage = () => {
   const [showRemarkModal, setShowRemarkModal] = useState(null);
   const [remarkText, setRemarkText] = useState('');
   const [remarkLoading, setRemarkLoading] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -154,6 +156,11 @@ const ReferralsPage = () => {
       ));
       setShowRemarkModal(null);
       setRemarkText('');
+
+      // Show success toast
+      setSuccessMessage('Remark saved successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (err) {
       console.error('Error saving remark:', err);
       alert('Failed to save remark: ' + err.message);
@@ -507,6 +514,17 @@ const ReferralsPage = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-500/50">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5 text-white" />
+            </div>
+            <p className="font-semibold">{successMessage}</p>
           </div>
         </div>
       )}
