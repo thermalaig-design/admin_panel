@@ -36,21 +36,39 @@ export const getMemberById = async (req, res, next) => {
 
 export const createMember = async (req, res, next) => {
   try {
+    console.log('=== CREATE MEMBER REQUEST ===');
+    console.log('Body:', req.body);
+    
     const member = await adminService.createMember(req.body);
+    
+    console.log('Create result:', member);
+    
     res.status(201).json({
       success: true,
       data: member
     });
   } catch (error) {
+    console.error('=== CREATE MEMBER ERROR ===');
+    console.error('Error:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     next(error);
   }
 };
 
 export const updateMember = async (req, res, next) => {
   try {
+    console.log('=== UPDATE MEMBER REQUEST ===');
+    console.log('ID:', req.params.id);
+    console.log('Body:', req.body);
+    
     const { id } = req.params;
     const member = await adminService.updateMember(id, req.body);
+    
+    console.log('Update result:', member);
+    
     if (!member) {
+      console.log('Member not found');
       return res.status(404).json({
         success: false,
         message: 'Member not found'
@@ -61,6 +79,10 @@ export const updateMember = async (req, res, next) => {
       data: member
     });
   } catch (error) {
+    console.error('=== UPDATE MEMBER ERROR ===');
+    console.error('Error:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     next(error);
   }
 };
@@ -540,9 +562,17 @@ export const getReferralById = async (req, res, next) => {
 
 export const updateReferral = async (req, res, next) => {
   try {
+    console.log('=== UPDATE REFERRAL REQUEST ===');
+    console.log('ID:', req.params.id);
+    console.log('Body:', req.body);
+    
     const { id } = req.params;
     const referral = await adminService.updateReferral(id, req.body);
+    
+    console.log('Update result:', referral);
+    
     if (!referral) {
+      console.log('Referral not found');
       return res.status(404).json({
         success: false,
         message: 'Referral not found'
@@ -553,6 +583,10 @@ export const updateReferral = async (req, res, next) => {
       data: referral
     });
   } catch (error) {
+    console.error('=== UPDATE REFERRAL ERROR ===');
+    console.error('Error:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     next(error);
   }
 };

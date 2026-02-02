@@ -3,7 +3,7 @@ import {
     HeartPulse, Search, Trash2, X, 
     CheckCircle2, AlertTriangle, Clock, 
     User, Phone, Calendar, Users,
-    RefreshCw, BadgeCheck, ChevronRight, Sparkles, MessageSquare, Loader
+    RefreshCw, BadgeCheck, ChevronRight, Sparkles, MessageSquare, Loader, RotateCcw
   } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import ReferralDetailPage from './ReferralDetailPage';
@@ -30,6 +30,12 @@ const ReferralsPage = () => {
   const [showRemarkModal, setShowRemarkModal] = useState(null);
   const [remarkText, setRemarkText] = useState('');
   const [remarkLoading, setRemarkLoading] = useState(false);
+  
+  // Reschedule Modal State
+  const [showRescheduleModal, setShowRescheduleModal] = useState(null);
+  const [rescheduleData, setRescheduleData] = useState({ date: '', time: '' });
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -159,6 +165,49 @@ const ReferralsPage = () => {
     setShowRemarkModal(referral);
   };
 
+  const openRescheduleModal = (e, referral) => {
+    e.stopPropagation();
+    const currentDate = referral.created_at ? new Date(referral.created_at) : new Date();
+    setRescheduleData({
+      date: currentDate.toISOString().split('T')[0],
+      time: currentDate.toTimeString().slice(0, 5)
+    });
+    setShowRescheduleModal(referral);
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleData.date || !rescheduleData.time) {
+      alert('Please select both date and time');
+      return;
+    }
+    
+    try {
+      setRescheduleLoading(true);
+      const newDateTime = new Date(`${rescheduleData.date}T${rescheduleData.time}`);
+      await updateReferral(showRescheduleModal.id, { 
+        created_at: newDateTime.toISOString(),
+        status: 'Pending'
+      });
+      setReferrals(prev => prev.map(ref => 
+        ref.id === showRescheduleModal.id 
+          ? { ...ref, created_at: newDateTime.toISOString(), status: 'Pending' } 
+          : ref
+      ));
+      setShowRescheduleModal(null);
+      setRescheduleData({ date: '', time: '' });
+      
+      // Show success toast
+      setSuccessMessage('Referral rescheduled successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+    } catch (err) {
+      console.error('Error rescheduling referral:', err);
+      alert('Failed to reschedule referral: ' + err.message);
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
   const handleSaveRemark = async () => {
     try {
       setRemarkLoading(true);
@@ -176,6 +225,63 @@ const ReferralsPage = () => {
     } catch (err) {
       console.error('Error saving remark:', err);
       alert('Failed to save remark: ' + err.message);
+    } finally {
+      setRemarkLoading(false);
+    }
+  };
+
+  // Handle Cancel with Remark
+  const handleCancelWithRemark = async (referralId) => {
+    try {
+      setRemarkLoading(true);
+      // First save the remark if provided
+      if (remarkText.trim()) {
+        await updateReferral(referralId, { remark: remarkText });
+        setReferrals(prev => prev.map(ref => 
+          ref.id === referralId ? { ...ref, remark: remarkText } : ref
+        ));
+      }
+      
+      // Then delete the referral
+      await deleteReferral(referralId);
+      
+      setShowRemarkModal(null);
+      setRemarkText('');
+      
+      // Show success toast
+      setSuccessMessage('Referral cancelled successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
+      loadData();
+    } catch (err) {
+      console.error('Error cancelling referral:', err);
+      alert('Failed to cancel referral: ' + err.message);
+    } finally {
+      setRemarkLoading(false);
+    }
+  };
+
+  // Handle Remark Update (Send button)
+  const handleRemarkUpdate = async () => {
+    try {
+      setRemarkLoading(true);
+      await updateReferral(showRemarkModal.id, { remark: remarkText });
+      setReferrals(prev => prev.map(ref => 
+        ref.id === showRemarkModal.id ? { ...ref, remark: remarkText } : ref
+      ));
+      setShowRemarkModal(null);
+      setRemarkText('');
+      
+      // Show success toast
+      setSuccessMessage('Remark updated successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
+      loadData();
+    } catch (err) {
+      console.error('Error updating remark:', err);
+      alert('Failed to update remark: ' + err.message);
     } finally {
       setRemarkLoading(false);
     }
@@ -325,15 +431,32 @@ const ReferralsPage = () => {
               return (
                 <div 
                   key={referral.id} 
-                  className="group bg-white rounded-2xl border border-slate-200/80 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/50 transition-all duration-300 overflow-hidden"
+                  className="group bg-white rounded-2xl border border-slate-200/80 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/50 transition-all duration-300 overflow-hidden relative flex flex-col"
                 >
-                  {/* Status Strip */}
-                  <div className={`h-1.5 bg-gradient-to-r ${statusConfig.gradient}`}></div>
+                  {/* Header with Status and Close Button */}
+                  <div className="flex items-center justify-between px-5 py-3 bg-slate-50/50 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${statusConfig.border.replace('border-', '')} animate-pulse shadow-sm`}></div>
+                      <span className={`text-[10px] font-bold uppercase tracking-widest ${statusConfig.text}`}>
+                        {referral.status || 'Pending'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDeleteConfirm(referral.id);
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      title="Remove Referral"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                   
-                  {/* Card Body */}
+                  {/* Card Body - Click to view details */}
                   <div 
                     onClick={() => openDetailPage(referral)}
-                    className="p-5 cursor-pointer"
+                    className="p-5 cursor-pointer flex-1"
                   >
                     {/* Status & Date Row */}
                     <div className="flex items-center justify-between mb-4">
@@ -389,45 +512,34 @@ const ReferralsPage = () => {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="px-4 py-3.5 bg-slate-50/80 border-t border-slate-100">
-                    <div className="grid grid-cols-4 gap-2">
-                      <button
-                        onClick={(e) => handleStatusChange(e, referral.id, 'Approved')}
-                        disabled={referral.status === 'Approved'}
-                        className={`py-2 px-1 rounded-xl text-[10px] font-semibold transition-all ${
-                          referral.status === 'Approved'
-                            ? 'bg-emerald-100 text-emerald-400 cursor-not-allowed border border-emerald-100'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 shadow-sm hover:shadow'
-                        }`}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={(e) => openRemarkModal(e, referral)}
-                        className="py-2 px-1 bg-white text-blue-600 border border-slate-200 rounded-xl text-[10px] font-semibold hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50 shadow-sm hover:shadow transition-all flex flex-col items-center justify-center"
-                      >
-                        <MessageSquare className="h-3 w-3 mb-0.5" />
-                        Remark
-                      </button>
-                      <button
-                        onClick={(e) => handleStatusChange(e, referral.id, 'Completed')}
-                        disabled={referral.status === 'Completed'}
-                        className={`py-2 px-1 rounded-xl text-[10px] font-semibold transition-all ${
-                          referral.status === 'Completed'
-                            ? 'bg-blue-100 text-blue-400 cursor-not-allowed border border-blue-100'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 shadow-sm hover:shadow'
-                        }`}
-                      >
-                        Complete
-                      </button>
+                  <div className="p-4 bg-slate-50/50 border-t border-slate-100">
+                    <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowDeleteConfirm(referral.id);
+                          openRemarkModal(e, referral);
                         }}
-                        className="py-2 px-1 bg-white text-slate-500 border border-slate-200 rounded-xl text-[10px] font-semibold hover:border-rose-300 hover:text-rose-500 hover:bg-rose-50 shadow-sm hover:shadow transition-all"
+                        disabled={referral.status === 'Approved' || referral.status === 'Completed'}
+                        className={`flex flex-col items-center justify-center gap-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border ${
+                          referral.status === 'Approved' || referral.status === 'Completed'
+                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-emerald-200/50'
+                        }`}
                       >
-                        Delete
+                        <CheckCircle2 className="h-5 w-5" />
+                        Accept
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRemarkText('');
+                          setShowRemarkModal({ ...referral, action: 'cancel' });
+                        }}
+                        className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border border-red-100 text-red-700 bg-red-50 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-red-200/50"
+                      >
+                        <X className="h-5 w-5" />
+                        Cancel
                       </button>
                     </div>
                   </div>
@@ -485,9 +597,14 @@ const ReferralsPage = () => {
             <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
               <MessageSquare className="h-8 w-8 text-blue-600" />
             </div>
-            <h3 className="text-xl font-bold text-slate-800 text-center mb-2">Add Remark</h3>
+            <h3 className="text-xl font-bold text-slate-800 text-center mb-2">
+              {showRemarkModal.action === 'cancel' ? 'Cancel Referral' : 'Add Remark'}
+            </h3>
             <p className="text-slate-500 text-center text-sm mb-8">
-              Add a private remark for <span className="font-semibold text-slate-700">{showRemarkModal.patient_name}</span>
+              {showRemarkModal.action === 'cancel' 
+                ? 'Provide a reason for cancelling this referral'
+                : 'Add a private remark for ' + showRemarkModal.patient_name
+              }
             </p>
             
             <div className="mb-8">
@@ -512,23 +629,96 @@ const ReferralsPage = () => {
                 Cancel
               </button>
               <button
-                onClick={handleSaveRemark}
+                onClick={() => {
+                  if (showRemarkModal.action === 'cancel') {
+                    handleCancelWithRemark(showRemarkModal.id);
+                  } else {
+                    handleRemarkUpdate();
+                  }
+                }}
                 disabled={remarkLoading}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                className={`flex-1 px-4 py-3 rounded-xl hover:shadow-lg transition-all font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  showRemarkModal.action === 'cancel'
+                    ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:shadow-red-200'
+                    : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-blue-200'
+                }`}
               >
                 {remarkLoading ? (
                   <>
                     <Loader className="h-4 w-4 animate-spin" />
-                    Saving...
+                    {showRemarkModal.action === 'cancel' ? 'Processing...' : 'Sending...'}
                   </>
                 ) : (
-                  'Save Remark'
+                  showRemarkModal.action === 'cancel' ? 'Cancel Referral' : 'Send'
                 )}
               </button>
             </div>
           </div>
         </div>
       )}
+      {/* Reschedule Modal */}
+      {showRescheduleModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <RotateCcw className="h-6 w-6 text-purple-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">Reschedule Referral</h3>
+            <p className="text-gray-500 text-center mb-6">
+              Select new date and time for <span className="font-semibold text-gray-700">{showRescheduleModal.patient_name}</span>
+            </p>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">New Date</label>
+                <input
+                  type="date"
+                  value={rescheduleData.date}
+                  onChange={(e) => setRescheduleData(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">New Time</label>
+                <input
+                  type="time"
+                  value={rescheduleData.time}
+                  onChange={(e) => setRescheduleData(prev => ({ ...prev, time: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRescheduleModal(null);
+                  setRescheduleData({ date: '', time: '' });
+                }}
+                disabled={rescheduleLoading}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReschedule}
+                disabled={rescheduleLoading}
+                className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {rescheduleLoading ? (
+                  <>
+                    <Loader className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Reschedule'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success Toast */}
       {showSuccessToast && (
         <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300">

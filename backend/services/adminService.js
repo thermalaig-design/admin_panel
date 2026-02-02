@@ -869,6 +869,10 @@ export const getReferralById = async (id) => {
 
 export const updateReferral = async (id, referralData) => {
   try {
+    console.log('=== UPDATE REFERRAL SERVICE ===');
+    console.log('ID:', id);
+    console.log('Referral Data:', referralData);
+    
     const { data: updatedReferral, error } = await supabaseAdmin
       .from('referrals')
       .update(referralData)
@@ -876,27 +880,62 @@ export const updateReferral = async (id, referralData) => {
       .select()
       .single();
 
+    console.log('Supabase response:', { data: updatedReferral, error });
+    
     if (error) throw error;
     
     if (updatedReferral && updatedReferral.user_phone) {
       const cleanUserPhone = updatedReferral.user_phone.replace(/\D/g, '').slice(-10);
-      const { data: members, error: memberError } = await supabase
-        .from('Members Table')
-        .select('"Membership number", "Mobile", type');
+      try {
+        // Try to find membership details
+        let members = null;
+        let memberError = null;
         
-      if (!memberError && members) {
-        const member = members.find(m => {
-          if (m.Mobile) {
-            const cleanMobile = m.Mobile.replace(/\D/g, '').slice(-10);
-            return cleanMobile === cleanUserPhone;
+        // First try with 'Members Table' (with space)
+        const { data: membersData1, error: error1 } = await supabase
+          .from('Members Table')
+          .select('"Membership number", "Mobile", type');
+        
+        if (!error1 && membersData1) {
+          members = membersData1;
+        } else {
+          // If that fails, try with 'members_table' (snake_case)
+          const { data: membersData2, error: error2 } = await supabase
+            .from('members_table')
+            .select('membership_number, mobile, type');
+          
+          if (!error2 && membersData2) {
+            members = membersData2;
+          } else {
+            // If both fail, try with 'members' (simple name)
+            const { data: membersData3, error: error3 } = await supabase
+              .from('members')
+              .select('membership_number, mobile, type');
+            
+            if (!error3 && membersData3) {
+              members = membersData3;
+            }
           }
-          return false;
-        });
-        
-        if (member) {
-          updatedReferral.membership_number = member['Membership number'];
-          updatedReferral.membership_type = member.type;
         }
+        
+        if (members) {
+          const member = members.find(m => {
+            const mobileValue = m['Mobile'] || m.mobile || m['membership_number'];
+            if (mobileValue) {
+              const cleanMobile = mobileValue.replace(/\D/g, '').slice(-10);
+              return cleanMobile === cleanUserPhone;
+            }
+            return false;
+          });
+          
+          if (member) {
+            updatedReferral.membership_number = member['Membership number'] || member.membership_number;
+            updatedReferral.membership_type = member.type;
+          }
+        }
+      } catch (lookupError) {
+        // If membership lookup fails, continue anyway
+        console.warn('Warning: Could not lookup membership details:', lookupError.message);
       }
     }
     

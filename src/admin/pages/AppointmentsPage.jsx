@@ -26,7 +26,7 @@ const AppointmentsPage = () => {
   const [showDetailPage, setShowDetailPage] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(null);
-  const [rescheduleData, setRescheduleData] = useState({ date: '', time: '' });
+  const [rescheduleData, setRescheduleData] = useState({ date: '', time: '', remark: '' });
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
 
   // Remark Modal State
@@ -87,13 +87,25 @@ const AppointmentsPage = () => {
       all: appointments.length,
       pending: appointments.filter(a => a.status?.toLowerCase() === 'pending').length,
       confirmed: appointments.filter(a => a.status?.toLowerCase() === 'confirmed').length,
-      cancelled: appointments.filter(a => a.status?.toLowerCase() === 'cancelled').length,
+      completed: appointments.filter(a => a.status?.toLowerCase() === 'completed').length,
       rescheduled: appointments.filter(a => a.status?.toLowerCase() === 'rescheduled').length,
     };
   }, [appointments]);
 
   const handleStatusChange = async (e, appointmentId, newStatus) => {
     e.stopPropagation();
+    
+    // If accepting (Confirmed), open remark modal instead of direct confirmation
+    if (newStatus === 'Confirmed') {
+      const appointment = appointments.find(app => app.id === appointmentId);
+      if (appointment) {
+        setRemarkText(appointment.remark || '');
+        setShowRemarkModal({ ...appointment, action: 'accept' });
+      }
+      return;
+    }
+    
+    // Handle other status changes
     try {
       await updateAppointment(appointmentId, { status: newStatus });
       setAppointments(prev => prev.map(app => 
@@ -131,7 +143,8 @@ const AppointmentsPage = () => {
     const currentDate = appointment.appointment_date ? new Date(appointment.appointment_date) : new Date();
     setRescheduleData({
       date: currentDate.toISOString().split('T')[0],
-      time: currentDate.toTimeString().slice(0, 5)
+      time: currentDate.toTimeString().slice(0, 5),
+      remark: appointment.remark || ''
     });
     setShowRescheduleModal(appointment);
   };
@@ -145,17 +158,29 @@ const AppointmentsPage = () => {
     try {
       setRescheduleLoading(true);
       const newDateTime = new Date(`${rescheduleData.date}T${rescheduleData.time}`);
-      await updateAppointment(showRescheduleModal.id, { 
+      const updateData = { 
         appointment_date: newDateTime.toISOString(),
         status: 'Rescheduled'
-      });
+      };
+      
+      // Add remark if provided
+      if (rescheduleData.remark.trim()) {
+        updateData.remark = rescheduleData.remark.trim();
+      }
+      
+      await updateAppointment(showRescheduleModal.id, updateData);
       setAppointments(prev => prev.map(app => 
         app.id === showRescheduleModal.id 
-          ? { ...app, appointment_date: newDateTime.toISOString(), status: 'Rescheduled' } 
+          ? { 
+              ...app, 
+              appointment_date: newDateTime.toISOString(), 
+              status: 'Rescheduled',
+              remark: rescheduleData.remark.trim() || app.remark
+            } 
           : app
       ));
       setShowRescheduleModal(null);
-      setRescheduleData({ date: '', time: '' });
+      setRescheduleData({ date: '', time: '', remark: '' });
       
       // Show success toast
       setSuccessMessage('Appointment rescheduled successfully!');
@@ -178,15 +203,30 @@ const AppointmentsPage = () => {
   const handleSaveRemark = async () => {
     try {
       setRemarkLoading(true);
-      await updateAppointment(showRemarkModal.id, { remark: remarkText });
-      setAppointments(prev => prev.map(app => 
-        app.id === showRemarkModal.id ? { ...app, remark: remarkText } : app
-      ));
+      
+      // If this is for accepting an appointment
+      if (showRemarkModal.action === 'accept') {
+        await updateAppointment(showRemarkModal.id, { 
+          status: 'Confirmed', 
+          remark: remarkText 
+        });
+        setAppointments(prev => prev.map(app => 
+          app.id === showRemarkModal.id 
+            ? { ...app, status: 'Confirmed', remark: remarkText } 
+            : app
+        ));
+        setSuccessMessage('Appointment accepted with remark!');
+      } else {
+        // Regular remark update
+        await updateAppointment(showRemarkModal.id, { remark: remarkText });
+        setAppointments(prev => prev.map(app => 
+          app.id === showRemarkModal.id ? { ...app, remark: remarkText } : app
+        ));
+        setSuccessMessage('Remark saved successfully!');
+      }
+      
       setShowRemarkModal(null);
       setRemarkText('');
-      
-      // Show success toast
-      setSuccessMessage('Remark saved successfully!');
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (err) {
@@ -203,8 +243,6 @@ const AppointmentsPage = () => {
         return { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500', icon: Clock };
       case 'confirmed':
         return { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', icon: CheckCircle2 };
-      case 'cancelled':
-        return { bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500', icon: XCircle };
       case 'completed':
         return { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500', icon: BadgeCheck };
       case 'rescheduled':
@@ -292,11 +330,11 @@ const AppointmentsPage = () => {
       {/* Stats Cards */}
       <div className="px-6 py-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-            {[
-              { key: 'all', label: 'All Appointments', count: statusCounts.all, gradient: 'from-indigo-500 to-purple-600', icon: Users },
+            {[{
+              key: 'all', label: 'All Appointments', count: statusCounts.all, gradient: 'from-indigo-500 to-purple-600', icon: Users },
               { key: 'pending', label: 'Pending', count: statusCounts.pending, gradient: 'from-amber-400 to-orange-500', icon: Clock },
               { key: 'confirmed', label: 'Confirmed', count: statusCounts.confirmed, gradient: 'from-emerald-400 to-green-600', icon: CheckCircle2 },
-              { key: 'cancelled', label: 'Cancelled', count: statusCounts.cancelled, gradient: 'from-red-400 to-rose-600', icon: XCircle },
+              { key: 'completed', label: 'Completed', count: statusCounts.completed, gradient: 'from-blue-400 to-cyan-600', icon: BadgeCheck },
               { key: 'rescheduled', label: 'Rescheduled', count: statusCounts.rescheduled, gradient: 'from-purple-400 to-violet-600', icon: RotateCcw },
             ].map(stat => (
             <button
@@ -367,124 +405,151 @@ const AppointmentsPage = () => {
             {paginatedAppointments.map((appointment) => {
               const statusConfig = getStatusConfig(appointment.status);
               
-              return (
-                <div 
-                  key={appointment.id} 
-                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-indigo-200 transition-all group"
-                >
-                  {/* Card Header - Click to view details */}
-                  <div 
-                    onClick={() => openDetailPage(appointment)}
-                    className="p-5 cursor-pointer"
-                  >
-                    {/* Patient Info */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                          {appointment.patient_name?.charAt(0)?.toUpperCase() || 'P'}
+                return (
+                    <div 
+                      key={appointment.id} 
+                      className="bg-white rounded-3xl border border-gray-100 overflow-hidden hover:shadow-2xl hover:border-indigo-200 transition-all group relative flex flex-col"
+                    >
+                      {/* Premium Header Line with Remove Button */}
+                      <div className="flex items-center justify-between px-5 py-3 bg-gray-50/50 border-b border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${statusConfig.dot} animate-pulse shadow-sm`}></div>
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${statusConfig.text}`}>
+                            {appointment.status || 'Pending'}
+                          </span>
                         </div>
-                        <div>
-                          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Patient</p>
-                          <h3 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                            {appointment.patient_name || 'Unknown'}
-                          </h3>
-                          <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                            <Phone className="h-3 w-3" />
-                            {appointment.patient_phone || 'N/A'}
-                          </p>
-                        </div>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 ${statusConfig.bg} ${statusConfig.text}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`}></span>
-                        {appointment.status || 'Pending'}
-                      </span>
-                    </div>
-
-                    {/* Doctor Info */}
-                    <div className="flex items-center gap-3 mb-4 p-3 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl">
-                      <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
-                        <Stethoscope className="h-5 w-5 text-cyan-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-cyan-500 uppercase font-medium">Doctor</p>
-                        <p className="font-semibold text-gray-800 truncate">{appointment.doctor_name || 'N/A'}</p>
-                      </div>
-                    </div>
-
-                    {/* Membership Details with Labels */}
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                        <span className="text-xs text-gray-500 font-medium">Membership Number</span>
-                        <span className="text-sm font-semibold text-blue-700">{appointment.membership_number || 'N/A'}</span>
-                      </div>
-                      <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                        <span className="text-xs text-gray-500 font-medium">Type</span>
-                        <span className="text-sm font-semibold text-purple-700">{appointment.appointment_type || 'General'}</span>
-                      </div>
-                    </div>
-
-                    {/* Date & Time */}
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-3 text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>{formatDate(appointment.appointment_date)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          <span>{formatTime(appointment.appointment_date)}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-indigo-500 font-medium group-hover:text-indigo-600">
-                        <span>View Details</span>
-                        <ChevronRight className="h-4 w-4" />
-                      </div>
-                    </div>
-                  </div>
-
-                    {/* Action Buttons */}
-                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-                      <div className="grid grid-cols-4 gap-2">
-                        <button
-                          onClick={(e) => handleStatusChange(e, appointment.id, 'Confirmed')}
-                          disabled={appointment.status === 'Confirmed'}
-                          className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] font-medium transition-all ${
-                            appointment.status === 'Confirmed'
-                              ? 'text-emerald-400 cursor-not-allowed'
-                              : 'text-emerald-600 hover:text-emerald-700'
-                          }`}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mb-0.5" />
-                          Accept
-                        </button>
-                        <button
-                          onClick={(e) => openRemarkModal(e, appointment)}
-                          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] font-medium transition-all text-blue-600 hover:text-blue-700"
-                        >
-                          <MessageSquare className="h-4 w-4 mb-0.5" />
-                          Remark
-                        </button>
-                        <button
-                          onClick={(e) => openRescheduleModal(e, appointment)}
-                          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] font-medium transition-all text-purple-600 hover:text-purple-700"
-                        >
-                          <RotateCcw className="h-4 w-4 mb-0.5" />
-                          Reschedule
-                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setShowDeleteConfirm(appointment.id);
                           }}
-                          className="flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] font-medium text-red-600 hover:text-red-700 transition-all"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Remove Appointment"
                         >
-                          <Trash2 className="h-4 w-4 mb-0.5" />
-                          Delete
+                          <X className="h-4 w-4" />
                         </button>
                       </div>
+
+                      {/* Card Body - Click to view details */}
+                      <div 
+                        onClick={() => openDetailPage(appointment)}
+                        className="p-5 cursor-pointer flex-1"
+                      >
+                        {/* Patient Info */}
+                        <div className="flex items-start gap-4 mb-5">
+                          <div className="relative">
+                            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg group-hover:scale-105 transition-transform duration-300">
+                              {appointment.patient_name?.charAt(0)?.toUpperCase() || 'P'}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-lg shadow-sm flex items-center justify-center border border-gray-100">
+                              <User className="h-3 w-3 text-indigo-600" />
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-extrabold text-gray-900 text-lg leading-tight group-hover:text-indigo-600 transition-colors truncate">
+                                {appointment.patient_name || 'Unknown'}
+                              </h3>
+                              {(appointment.booking_for || appointment.booking_type) && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                  {(appointment.booking_for || appointment.booking_type) === 'self' ? 'SELF' : 'FAMILY'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-1 mt-1">
+                              <p className="text-xs text-gray-500 font-medium flex items-center gap-1.5">
+                                <Phone className="h-3.5 w-3.5 text-indigo-400" />
+                                {appointment.patient_phone || 'N/A'}
+                              </p>
+                              {appointment.membership_number && (
+                                <p className="text-[11px] text-indigo-500 font-bold tracking-tight">
+                                  #{appointment.membership_number}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-2 gap-3 mb-5">
+                          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 hover:border-indigo-100 hover:bg-white transition-all">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Stethoscope className="h-3.5 w-3.5 text-indigo-500" />
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Doctor</span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-700 truncate">{appointment.doctor_name || 'Not Assigned'}</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 hover:border-purple-100 hover:bg-white transition-all">
+                            <div className="flex items-center gap-2 mb-1">
+                              <FileText className="h-3.5 w-3.5 text-purple-500" />
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Type</span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-700 truncate">{appointment.appointment_type || 'General'}</p>
+                          </div>
+                        </div>
+
+                        {/* Schedule Badge */}
+                        <div className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 mb-2">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white rounded-xl shadow-sm">
+                              <Calendar className="h-4 w-4 text-indigo-600" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-tighter">Scheduled For</p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-extrabold text-indigo-900">{formatDate(appointment.appointment_date)}</span>
+                                <span className="w-1 h-1 rounded-full bg-indigo-300"></span>
+                                <span className="text-xs font-bold text-indigo-600">{formatTime(appointment.appointment_date)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-indigo-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="p-4 bg-gray-50/50 border-t border-gray-100">
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={(e) => handleStatusChange(e, appointment.id, 'Confirmed')}
+                            disabled={appointment.status === 'Confirmed' || appointment.status === 'Completed'}
+                            className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border ${
+                              appointment.status === 'Confirmed' || appointment.status === 'Completed'
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-emerald-200/50'
+                            }`}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            Accept
+                          </button>
+                          <button
+                            onClick={(e) => openRescheduleModal(e, appointment)}
+                            disabled={appointment.status === 'Completed'}
+                            className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border ${
+                              appointment.status === 'Completed'
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                                : 'bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-600 hover:text-white hover:border-purple-600 hover:shadow-purple-200/50'
+                            }`}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Reschedule
+                          </button>
+                          <button
+                            onClick={(e) => handleStatusChange(e, appointment.id, 'Completed')}
+                            disabled={appointment.status === 'Completed'}
+                            className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border ${
+                              appointment.status === 'Completed'
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                                : 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-600 hover:text-white hover:border-blue-600 hover:shadow-blue-200/50'
+                            }`}
+                          >
+                            <BadgeCheck className="h-4 w-4" />
+                            Complete
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                </div>
-              );
+                );
             })}
           </div>
         )}
@@ -561,6 +626,16 @@ const AppointmentsPage = () => {
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Remark (Optional)</label>
+                <textarea
+                  value={rescheduleData.remark}
+                  onChange={(e) => setRescheduleData(prev => ({ ...prev, remark: e.target.value }))}
+                  placeholder="Add a remark for this rescheduling..."
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all resize-none"
+                />
+              </div>
             </div>
 
             <div className="flex gap-3">
@@ -600,9 +675,13 @@ const AppointmentsPage = () => {
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <MessageSquare className="h-6 w-6 text-blue-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">Add Remark</h3>
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+              {showRemarkModal.action === 'accept' ? 'Accept Appointment with Remark' : 'Add Remark'}
+            </h3>
             <p className="text-gray-500 text-center mb-6">
-              Add a private remark for <span className="font-semibold text-gray-700">{showRemarkModal.patient_name}</span>
+              {showRemarkModal.action === 'accept' 
+                ? `Accept appointment for ${showRemarkModal.patient_name} and add a remark` 
+                : `Add a private remark for ${showRemarkModal.patient_name}`}
             </p>
             
             <div className="mb-6">

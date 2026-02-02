@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   X, Trash2, Loader, ArrowLeft, CheckCircle2, 
   AlertTriangle, Clock, User, Phone, Calendar, Stethoscope, 
-  FileText, BadgeCheck, Mail, MapPin, RotateCcw
+  FileText, BadgeCheck, Mail, MapPin, RotateCcw, MessageSquare
 } from 'lucide-react';
 import { 
   updateAppointment,
@@ -15,6 +15,16 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
   const [updating, setUpdating] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  
+  // Remark Modal State
+  const [showRemarkModal, setShowRemarkModal] = useState(false);
+  const [remarkText, setRemarkText] = useState('');
+  const [remarkLoading, setRemarkLoading] = useState(false);
+  
+  // Reschedule Modal State
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState({ date: '', time: '', remark: '' });
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
 
   const getStatusConfig = (status) => {
     if (!status) return { bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-500' };
@@ -72,9 +82,115 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
       await deleteAppointment(currentApp.id);
       if (onRefresh) onRefresh();
       onBack();
+      
+      // Show success toast
+      setSuccessMessage('Appointment deleted successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (error) {
       console.error('Error deleting appointment:', error);
       alert(`Failed to delete appointment: ${error.message}`);
+    }
+  };
+
+  // Handle Accept (Confirm)
+  const handleAccept = async () => {
+    // Open remark modal instead of direct confirmation
+    setRemarkText(currentApp.remark || '');
+    setShowRemarkModal({ ...currentApp, action: 'accept' });
+  };
+
+  // Open Remark Modal
+  const openRemarkModal = () => {
+    setRemarkText(currentApp.remark || '');
+    setShowRemarkModal(true);
+  };
+
+  // Save Remark
+  const handleSaveRemark = async () => {
+    try {
+      setRemarkLoading(true);
+      
+      // If this is for accepting an appointment
+      if (showRemarkModal.action === 'accept') {
+        await updateAppointment(currentApp.id, { 
+          status: 'Confirmed', 
+          remark: remarkText 
+        });
+        setCurrentApp(prev => ({ ...prev, status: 'Confirmed', remark: remarkText }));
+        setSuccessMessage('Appointment accepted with remark!');
+      } else {
+        // Regular remark update
+        await updateAppointment(currentApp.id, { remark: remarkText });
+        setCurrentApp(prev => ({ ...prev, remark: remarkText }));
+        setSuccessMessage('Remark saved successfully!');
+      }
+      
+      setShowRemarkModal(false);
+      setRemarkText('');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      console.error('Error saving remark:', error);
+      alert(`Failed to save remark: ${error.message}`);
+    } finally {
+      setRemarkLoading(false);
+    }
+  };
+
+  // Open Reschedule Modal
+  const openRescheduleModal = () => {
+    const currentDate = currentApp.appointment_date ? new Date(currentApp.appointment_date) : new Date();
+    setRescheduleData({
+      date: currentDate.toISOString().split('T')[0],
+      time: currentDate.toTimeString().slice(0, 5),
+      remark: currentApp.remark || ''
+    });
+    setShowRescheduleModal(true);
+  };
+
+  // Handle Reschedule
+  const handleReschedule = async () => {
+    if (!rescheduleData.date || !rescheduleData.time) {
+      alert('Please select both date and time');
+      return;
+    }
+    
+    try {
+      setRescheduleLoading(true);
+      const newDateTime = new Date(`${rescheduleData.date}T${rescheduleData.time}`);
+      const updateData = { 
+        appointment_date: newDateTime.toISOString(),
+        status: 'Rescheduled'
+      };
+      
+      // Add remark if provided
+      if (rescheduleData.remark.trim()) {
+        updateData.remark = rescheduleData.remark.trim();
+      }
+      
+      await updateAppointment(currentApp.id, updateData);
+      setCurrentApp(prev => ({ 
+        ...prev, 
+        appointment_date: newDateTime.toISOString(), 
+        status: 'Rescheduled',
+        remark: rescheduleData.remark.trim() || prev.remark
+      }));
+      setShowRescheduleModal(false);
+      setRescheduleData({ date: '', time: '', remark: '' });
+      
+      setSuccessMessage('Appointment rescheduled successfully!');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      console.error('Error rescheduling appointment:', error);
+      alert(`Failed to reschedule appointment: ${error.message}`);
+    } finally {
+      setRescheduleLoading(false);
     }
   };
 
@@ -127,69 +243,61 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
                 </div>
               </div>
 
-              {/* Divider */}
-              <div className="border-t border-gray-100 mx-4"></div>
 
-              {/* Update Status Section */}
+            </div>
+
+            {/* Action Buttons Section */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mt-6">
+              <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-indigo-50/50 border-b border-gray-100">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-indigo-600" />
+                  ACTIONS
+                </h3>
+              </div>
               <div className="p-4">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 text-center">Update Status</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-3">
+                  {/* Accept Button */}
                   <button
-                    onClick={() => handleStatusChange('Confirmed')}
-                    disabled={currentApp.status === 'Confirmed' || updating}
+                    onClick={handleAccept}
+                    disabled={currentApp.status === 'Confirmed' || currentApp.status === 'Completed' || updating}
                     className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl text-xs font-medium transition-all border ${
-                      currentApp.status === 'Confirmed'
+                      currentApp.status === 'Confirmed' || currentApp.status === 'Completed'
                         ? 'bg-emerald-50 text-emerald-400 border-emerald-200 cursor-not-allowed'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:text-emerald-600'
+                        : 'bg-white text-emerald-600 border-emerald-200 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
                     }`}
                   >
                     <CheckCircle2 className="h-5 w-5 mb-1" />
-                    APPROVE
+                    ACCEPT
                   </button>
+                  
+                  {/* Reschedule Button */}
                   <button
-                    onClick={() => handleStatusChange('Pending')}
-                    disabled={currentApp.status === 'Pending' || updating}
+                    onClick={openRescheduleModal}
+                    disabled={currentApp.status === 'Completed' || updating}
                     className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl text-xs font-medium transition-all border ${
-                      currentApp.status === 'Pending'
-                        ? 'bg-amber-50 text-amber-400 border-amber-200 cursor-not-allowed'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:text-amber-600'
+                      currentApp.status === 'Completed'
+                        ? 'bg-purple-50 text-purple-400 border-purple-200 cursor-not-allowed'
+                        : 'bg-white text-purple-600 border-purple-200 hover:border-purple-300 hover:text-purple-700 hover:bg-purple-50'
                     }`}
                   >
-                    <Clock className="h-5 w-5 mb-1" />
-                    PENDING
+                    <RotateCcw className="h-5 w-5 mb-1" />
+                    RESCHEDULE
                   </button>
-                  <button
-                    onClick={() => handleStatusChange('Cancelled')}
-                    disabled={currentApp.status === 'Cancelled' || updating}
-                    className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl text-xs font-medium transition-all border ${
-                      currentApp.status === 'Cancelled'
-                        ? 'bg-red-50 text-red-400 border-red-200 cursor-not-allowed'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-red-300 hover:text-red-600'
-                    }`}
-                  >
-                    <X className="h-5 w-5 mb-1" />
-                    REJECT
-                  </button>
+                  
+                  {/* Complete Button */}
                   <button
                     onClick={() => handleStatusChange('Completed')}
                     disabled={currentApp.status === 'Completed' || updating}
                     className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl text-xs font-medium transition-all border ${
                       currentApp.status === 'Completed'
                         ? 'bg-blue-50 text-blue-400 border-blue-200 cursor-not-allowed'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                        : 'bg-white text-blue-600 border-blue-200 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50'
                     }`}
                   >
                     <BadgeCheck className="h-5 w-5 mb-1" />
                     COMPLETE
                   </button>
                 </div>
-                
-                {updating && (
-                  <div className="flex items-center justify-center gap-2 mt-3 text-gray-500">
-                    <Loader className="h-4 w-4 animate-spin" />
-                    <span className="text-xs">Updating...</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -242,6 +350,30 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
                       <p className="text-gray-900 font-semibold mt-1">{currentApp.patient_gender || 'N/A'}</p>
                     </div>
                   </div>
+                  {(currentApp.booking_for || currentApp.booking_type) && (
+                    <div className="flex items-start gap-4">
+                      <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600">
+                        <BadgeCheck className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Booking Type</p>
+                        <p className="text-gray-900 font-semibold mt-1">
+                          {(currentApp.booking_for || currentApp.booking_type) === 'self' ? 'Self Booking' : 'Family Member Booking'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {currentApp.patient_relationship && (
+                    <div className="flex items-start gap-4">
+                      <div className="p-2.5 bg-purple-50 rounded-xl text-purple-600">
+                        <User className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Relationship</p>
+                        <p className="text-gray-900 font-semibold mt-1">{currentApp.patient_relationship}</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-start gap-4 md:col-span-2">
                     <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600">
                       <MapPin className="h-5 w-5" />
@@ -399,6 +531,164 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
             </div>
           </div>
         )}
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">Delete Appointment?</h3>
+              <p className="text-gray-500 text-center mb-6">
+                This action cannot be undone. The appointment will be permanently removed.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Remark Modal */}
+        {showRemarkModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="h-6 w-6 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                {showRemarkModal.action === 'accept' ? 'Accept Appointment with Remark' : 'Add Remark'}
+              </h3>
+              <p className="text-gray-500 text-center mb-6">
+                {showRemarkModal.action === 'accept' 
+                  ? `Accept appointment for ${currentApp.patient_name} and add a remark` 
+                  : `Add a private remark for ${currentApp.patient_name}`}
+              </p>
+              
+              <div className="mb-6">
+                <textarea
+                  value={remarkText}
+                  onChange={(e) => setRemarkText(e.target.value)}
+                  placeholder="Enter your remark here..."
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowRemarkModal(false);
+                    setRemarkText('');
+                  }}
+                  disabled={remarkLoading}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveRemark}
+                  disabled={remarkLoading}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {remarkLoading ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Remark'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reschedule Modal */}
+        {showRescheduleModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <RotateCcw className="h-6 w-6 text-purple-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">Reschedule Appointment</h3>
+              <p className="text-gray-500 text-center mb-6">
+                Select new date and time for <span className="font-semibold text-gray-700">{currentApp.patient_name}</span>
+              </p>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">New Date</label>
+                  <input
+                    type="date"
+                    value={rescheduleData.date}
+                    onChange={(e) => setRescheduleData(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">New Time</label>
+                  <input
+                    type="time"
+                    value={rescheduleData.time}
+                    onChange={(e) => setRescheduleData(prev => ({ ...prev, time: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Remark (Optional)</label>
+                  <textarea
+                    value={rescheduleData.remark}
+                    onChange={(e) => setRescheduleData(prev => ({ ...prev, remark: e.target.value }))}
+                    placeholder="Add a remark for this rescheduling..."
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowRescheduleModal(false);
+                    setRescheduleData({ date: '', time: '' });
+                  }}
+                  disabled={rescheduleLoading}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReschedule}
+                  disabled={rescheduleLoading}
+                  className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {rescheduleLoading ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Reschedule'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Success Toast */}
         {showSuccessToast && (
           <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300">

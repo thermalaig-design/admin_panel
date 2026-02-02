@@ -304,7 +304,17 @@ const ElectedMembersPage = ({ onNavigate }) => {
         <div className="px-4 sm:px-6 mt-4">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => onNavigate('main')}
+              onClick={() => {
+                if (showAddForm || editingItem) {
+                  // Close the form if it's open
+                  setShowAddForm(false);
+                  setEditingItem(null);
+                  setFormData({});
+                } else {
+                  // Navigate back to main if form is not open
+                  onNavigate('main');
+                }
+              }}
               className="bg-gray-100 text-gray-700 p-2 rounded-lg hover:bg-gray-200"
             >
               <ChevronLeft className="h-5 w-5" />

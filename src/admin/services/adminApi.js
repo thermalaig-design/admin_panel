@@ -32,20 +32,55 @@ export const getMemberByIdAdmin = async (id) => {
 
 export const createMember = async (memberData) => {
   try {
+    console.log('=== CREATE MEMBER API CALL ===');
+    console.log('Data:', memberData);
+    
     const response = await adminApi.post('/admin/members', memberData);
+    
+    console.log('Response:', response);
+    console.log('Response data:', response.data);
+    
     return response.data;
   } catch (error) {
-    console.error('Error creating member:', error);
+    console.error('=== CREATE MEMBER API ERROR ===');
+    console.error('Error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error response:', error.response);
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+      console.error('Error response headers:', error.response.headers);
+    }
+    console.error('Error stack:', error.stack);
     throw error;
   }
 };
 
 export const updateMember = async (id, memberData) => {
   try {
+    console.log('=== UPDATE MEMBER API CALL ===');
+    console.log('ID:', id);
+    console.log('Data:', memberData);
+    
     const response = await adminApi.put(`/admin/members/${id}`, memberData);
+    
+    console.log('Response:', response);
+    console.log('Response data:', response.data);
+    
     return response.data;
   } catch (error) {
-    console.error('Error updating member:', error);
+    console.error('=== UPDATE MEMBER API ERROR ===');
+    console.error('Error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error response:', error.response);
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+      console.error('Error response headers:', error.response.headers);
+    }
+    console.error('Error stack:', error.stack);
     throw error;
   }
 };
@@ -348,10 +383,28 @@ export const createReferral = async (referralData) => {
 
 export const updateReferral = async (id, referralData) => {
   try {
+    console.log('=== UPDATE REFERRAL API CALL ===');
+    console.log('ID:', id);
+    console.log('Referral Data:', referralData);
+    
     const response = await adminApi.put(`/admin/referrals/${id}`, referralData);
+    
+    console.log('Response:', response);
+    console.log('Response data:', response.data);
+    
     return response.data;
   } catch (error) {
-    console.error('Error updating referral:', error);
+    console.error('=== UPDATE REFERRAL API ERROR ===');
+    console.error('Error object:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error response:', error.response);
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+      console.error('Error response headers:', error.response.headers);
+    }
+    console.error('Error stack:', error.stack);
     throw error;
   }
 };

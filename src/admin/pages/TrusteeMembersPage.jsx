@@ -104,8 +104,15 @@ const TrusteeMembersPage = ({ onNavigate }) => {
   };
 
   const handleEdit = (item) => {
+    // Create form data that combines member and elected member fields
+    const combinedFormData = {
+      ...item,
+      isElected: item.is_elected_member || false,
+      position: item.position || '',
+      location: item.location || ''
+    };
     setEditingItem(item);
-    setFormData(item);
+    setFormData(combinedFormData);
     setShowAddForm(true);
   };
 
@@ -130,21 +137,28 @@ const TrusteeMembersPage = ({ onNavigate }) => {
       setLoading(true);
       const id = editingItem?.id || editingItem?.['S. No.'];
 
-      // Prepare member data (ensure type is set to Trustee)
-      const memberData = { ...formData, type: 'Trustee' };
+      // Prepare member data - determine type based on conversion checkbox
+      let memberType = 'Trustee';
+      if (formData.convertToPatron) {
+        memberType = 'Patron';
+      }
+      
+      const memberData = { ...formData, type: memberType };
       
       // Extract temporary fields not needed for member creation/update
-      const isElected = memberData.isElected;
-      const electedPosition = memberData.position;
-      const electedLocation = memberData.location;
+      const {
+        convertToPatron: _convertToPatronValue, // UI-only field, not saved to DB
+        isElected: isElectedValue, position: positionValue, location: locationValue, // temporary UI fields
+        created_at: _createdAtValue, updated_at: _updatedAtValue, // system timestamp fields (ignored)
+        id: _memberIdValue, membership_number: _membershipNumberValue, // primary key and cross-table field (ignored)
+        ...cleanMemberData
+      } = memberData;
       
-      // Create member payload without temporary fields
-      const memberPayload = {
-        ...memberData,
-        isElected: undefined,
-        position: undefined,
-        location: undefined
-      };
+      const memberPayload = cleanMemberData;
+      
+      const isElected = isElectedValue;
+      const electedPosition = positionValue;
+      const electedLocation = locationValue;
       
       // Add is_elected_member field if the member is elected
       if (isElected) {
@@ -153,7 +167,13 @@ const TrusteeMembersPage = ({ onNavigate }) => {
         memberPayload.is_elected_member = false;
       };
 
-      let newTrusteeMember = null;
+      // Determine the membership number for elected member operations
+      let membershipNumber = memberPayload['Membership number'] || editingItem?.['Membership number'];
+      if (!membershipNumber) {
+        // Try alternative field names
+        membershipNumber = memberPayload.membership_number || editingItem?.membership_number || 
+                           memberPayload.Membership_number || editingItem?.Membership_number;
+      }
       
       if (id) {
         // Update existing member
@@ -164,14 +184,15 @@ const TrusteeMembersPage = ({ onNavigate }) => {
       } else {
         // Create new member
         const response = await createMember(memberPayload);
-        newTrusteeMember = response;
         setTrusteeMembers([...trusteeMembers, response.data]);
+        // If this is a new member, get the membership number from the response
+        if (!membershipNumber && (response?.data?.['Membership number'] || response?.data?.membership_number)) {
+          membershipNumber = response.data['Membership number'] || response.data.membership_number;
+        }
       }
       
       // Handle elected member functionality if needed
       if (isElected) {
-        const membershipNumber = memberPayload['Membership number'] || (newTrusteeMember?.data?.['Membership number']);
-        
         if (membershipNumber) {
           // Add to elected_members table
           const electedData = {
@@ -194,7 +215,6 @@ const TrusteeMembersPage = ({ onNavigate }) => {
         }
       } else if (editingItem && editingItem.is_elected_member && !isElected) {
         // Remove from elected_members table if user unchecked elected option
-        const membershipNumber = memberPayload['Membership number'];
         if (membershipNumber) {
           const electedMembers = await getAllElectedMembersAdmin();
           const electedRecord = electedMembers.data.find(e => e.membership_number === membershipNumber);
@@ -213,7 +233,24 @@ const TrusteeMembersPage = ({ onNavigate }) => {
       alert(editingItem ? 'Trustee member updated successfully!' : 'Trustee member added successfully!');
     } catch (err) {
       console.error('Error saving trustee member:', err);
-      alert(`Failed to save: ${err.message || 'Unknown error'}`);
+      console.error('Error name:', err.name);
+      console.error('Error message:', err.message);
+      console.error('Error code:', err.code);
+      console.error('Error response:', err.response);
+      if (err.response) {
+        console.error('Error response data:', err.response.data);
+        console.error('Error response status:', err.response.status);
+      }
+      
+      // Create a more detailed error message
+      let errorMessage = 'Unknown error';
+      if (err.response && err.response.data && err.response.data.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      alert(`Failed to save: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -268,7 +305,20 @@ const TrusteeMembersPage = ({ onNavigate }) => {
                 />
               </div>
             ))}
-            
+                        
+            {/* Convert to Patron Option */}
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.convertToPatron || false}
+                  onChange={(e) => setFormData({ ...formData, convertToPatron: e.target.checked })}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Convert this member to Patron?</span>
+              </label>
+            </div>
+                        
             {/* Elected Member Option */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -416,7 +466,17 @@ const TrusteeMembersPage = ({ onNavigate }) => {
         <div className="px-4 sm:px-6 mt-4">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => onNavigate('main')}
+              onClick={() => {
+                if (showAddForm || editingItem) {
+                  // Close the form if it's open
+                  setShowAddForm(false);
+                  setEditingItem(null);
+                  setFormData({});
+                } else {
+                  // Navigate back to main if form is not open
+                  onNavigate('main');
+                }
+              }}
               className="bg-gray-100 text-gray-700 p-2 rounded-lg hover:bg-gray-200"
             >
               <ChevronLeft className="h-5 w-5" />
