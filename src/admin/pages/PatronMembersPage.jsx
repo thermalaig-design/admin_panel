@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Award, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft } from 'lucide-react';
+import { Award, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
 import { 
   getAllMembersAdmin, 
@@ -63,7 +64,30 @@ const PatronMembersPage = ({ onNavigate }) => {
         };
       });
       
-      setPatronMembers(mergedPatrons);
+      // Remove duplicates based on membership number or name
+      const uniquePatrons = mergedPatrons.filter((patron, index, self) => {
+        // First try to deduplicate by membership number
+        const membershipNumber = patron['Membership number'] || patron.membership_number || patron.Membership_number;
+        if (membershipNumber) {
+          return index === self.findIndex(p => 
+            (p['Membership number'] || p.membership_number || p.Membership_number) === membershipNumber
+          );
+        }
+        // If no membership number, deduplicate by name
+        const name = patron.Name || patron.name || '';
+        return index === self.findIndex(p => 
+          (p.Name || p.name || '') === name
+        );
+      });
+      
+      // Sort patrons alphabetically by name
+      const sortedPatrons = uniquePatrons.sort((a, b) => {
+        const nameA = (a.Name || a.name || '').toString().toLowerCase();
+        const nameB = (b.Name || b.name || '').toString().toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+      
+      setPatronMembers(sortedPatrons);
     } catch (err) {
       console.error('Error loading patron members:', err);
       setError(`Failed to load patron members: ${err.message || 'Please make sure backend server is running'}`);
@@ -74,16 +98,27 @@ const PatronMembersPage = ({ onNavigate }) => {
 
   const filteredData = useMemo(() => {
     const q = (searchQuery || '').trim().toLowerCase();
-    if (!q) return patronMembers;
+    let result;
     
-    return patronMembers.filter(item => {
-      try {
-        return Object.values(item).some(value => 
-          value && value.toString().toLowerCase().includes(q)
-        );
-      } catch {
-        return false;
-      }
+    if (!q) {
+      result = patronMembers;
+    } else {
+      result = patronMembers.filter(item => {
+        try {
+          return Object.values(item).some(value => 
+            value && value.toString().toLowerCase().includes(q)
+          );
+        } catch {
+          return false;
+        }
+      });
+    }
+    
+    // Sort the filtered results alphabetically by name
+    return result.sort((a, b) => {
+      const nameA = (a.Name || a.name || '').toString().toLowerCase();
+      const nameB = (b.Name || b.name || '').toString().toLowerCase();
+      return nameA.localeCompare(nameB);
     });
   }, [searchQuery, patronMembers]);
 
@@ -99,6 +134,59 @@ const PatronMembersPage = ({ onNavigate }) => {
     setEditingItem(null);
     setFormData({ type: 'Patron', isElected: false }); // Set default type as Patron
     setShowAddForm(true);
+  };
+
+  const handleDownload = () => {
+    if (!filteredData.length) {
+      alert('No data to download');
+      return;
+    }
+
+    // Prepare data for Excel
+    const dataToExport = filteredData.map((item) => ({
+      'Name': item.Name || 'N/A',
+      'Membership Number': item['Membership number'] || item.membership_number || 'N/A',
+      'Mobile': item.Mobile || 'N/A',
+      'Email': item.Email || 'N/A',
+      'Type': item.type || 'N/A',
+      'Company Name': item['Company Name'] || 'N/A',
+      'Address Home': item['Address Home'] || 'N/A',
+      'Address Office': item['Address Office'] || 'N/A',
+      'Resident Landline': item['Resident Landline'] || 'N/A',
+      'Office Landline': item['Office Landline'] || 'N/A',
+      'Position': item.position || 'N/A',
+      'Location': item.location || 'N/A',
+      'Is Elected Member': item.is_elected_member ? 'Yes' : 'No'
+    }));
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Patron Members');
+
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 20 }, // Name
+      { wch: 15 }, // Membership Number
+      { wch: 12 }, // Mobile
+      { wch: 15 }, // Email
+      { wch: 15 }, // Type
+      { wch: 20 }, // Company Name
+      { wch: 20 }, // Address Home
+      { wch: 20 }, // Address Office
+      { wch: 15 }, // Resident Landline
+      { wch: 15 }, // Office Landline
+      { wch: 15 }, // Position
+      { wch: 15 }, // Location
+      { wch: 12 }  // Is Elected Member
+    ];
+
+    // Generate filename with current date
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `Patron_Members_${date}.xlsx`;
+
+    // Download the file
+    XLSX.writeFile(workbook, filename);
   };
 
   const handleEdit = (item) => {
@@ -122,7 +210,18 @@ const PatronMembersPage = ({ onNavigate }) => {
     try {
       const id = item.id || item['S. No.'];
       await deleteMember(id);
-      setPatronMembers(patronMembers.filter(m => (m.id || m['S. No.']) !== id));
+      
+      // Remove the deleted item and maintain alphabetical order
+      const updatedPatronMembers = patronMembers.filter(m => (m.id || m['S. No.']) !== id);
+      
+      // Sort the remaining members alphabetically by name
+      const sortedPatronMembers = updatedPatronMembers.sort((a, b) => {
+        const nameA = (a.Name || a.name || '').toString().toLowerCase();
+        const nameB = (b.Name || b.name || '').toString().toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+      
+      setPatronMembers(sortedPatronMembers);
       alert('Patron member deleted successfully!');
     } catch (err) {
       console.error('Error deleting patron member:', err);
@@ -176,13 +275,31 @@ const PatronMembersPage = ({ onNavigate }) => {
       if (id) {
         // Update existing member
         await updateMember(id, memberPayload);
-        setPatronMembers(patronMembers.map(m => 
+        const updatedPatronMembers = patronMembers.map(m => 
           (m.id || m['S. No.']) === id ? { ...m, ...memberPayload } : m
-        ));
+        );
+        
+        // Sort the updated members alphabetically by name for immediate UI update
+        const sortedPatronMembers = updatedPatronMembers.sort((a, b) => {
+          const nameA = (a.Name || a.name || '').toString().toLowerCase();
+          const nameB = (b.Name || b.name || '').toString().toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+        
+        setPatronMembers(sortedPatronMembers);
       } else {
         // Create new member
         const response = await createMember(memberPayload);
-        setPatronMembers([...patronMembers, response.data]);
+        const newPatronMembers = [...patronMembers, response.data];
+        
+        // Sort the new members alphabetically by name for immediate UI update
+        const sortedPatronMembers = newPatronMembers.sort((a, b) => {
+          const nameA = (a.Name || a.name || '').toString().toLowerCase();
+          const nameB = (b.Name || b.name || '').toString().toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+        
+        setPatronMembers(sortedPatronMembers);
         // If this is a new member, get the membership number from the response
         if (!membershipNumber && (response?.data?.['Membership number'] || response?.data?.membership_number)) {
           membershipNumber = response.data['Membership number'] || response.data.membership_number;
@@ -487,7 +604,7 @@ const PatronMembersPage = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Search & Add */}
+        {/* Search & Add & Download */}
         <div className="px-4 sm:px-6 mt-4 flex gap-3">
           <div className="flex-1 bg-gray-50 rounded-lg p-2 flex items-center gap-2 border border-gray-200 focus-within:border-indigo-300">
             <Search className="h-4 w-4 text-gray-400 ml-1" />
@@ -499,6 +616,13 @@ const PatronMembersPage = ({ onNavigate }) => {
               className="flex-1 bg-transparent border-none focus:ring-0 text-gray-800 placeholder-gray-400 text-sm py-1"
             />
           </div>
+          <button
+            onClick={handleDownload}
+            className="bg-green-600 text-white px-3 py-2 rounded-lg font-medium hover:bg-green-700 flex items-center gap-1.5 text-sm"
+          >
+            <Download className="h-4 w-4" />
+            Download
+          </button>
           <button
             onClick={handleAdd}
             className="bg-indigo-600 text-white px-3 py-2 rounded-lg font-medium hover:bg-indigo-700 flex items-center gap-1.5 text-sm"

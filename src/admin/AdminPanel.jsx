@@ -1,9 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Shield, Users, Home as HomeIcon, Calendar, HeartPulse, 
-  LayoutDashboard, Star, Award, Building2, Stethoscope, 
-  CalendarCheck, UserPlus, LogOut, Menu, X
-} from 'lucide-react';
+import { Shield, Users, Home as HomeIcon, Calendar, Building2, LogOut } from 'lucide-react';
 import DirectoryMain from './pages/DirectoryMain';
 import CommitteeMembersPage from './pages/CommitteeMembersPage';
 import TrusteeMembersPage from './pages/TrusteeMembersPage';
@@ -14,6 +10,7 @@ import DoctorsPage from './pages/DoctorsPage';
 import AppointmentsPage from './pages/AppointmentsPage';
 import ReferralsPage from './pages/ReferralsPage';
 import SponsorsPage from './pages/SponsorsPage';
+import GalleryPage from './pages/GalleryPage';
 
 const TopNavBar = ({ onNavigate, onLogout }) => (
   <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-30">
@@ -36,42 +33,6 @@ const TopNavBar = ({ onNavigate, onLogout }) => (
         <LogOut className="h-5 w-5" />
         <span className="hidden sm:inline text-sm">Logout</span>
       </button>
-    </div>
-  </div>
-);
-
-const NavigationMenu = ({ currentView, handleNavigate }) => (
-  <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-14 z-20">
-    <div className="flex flex-wrap gap-2">
-      {[
-        { id: 'main', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'trustees', label: 'Trustee Members', icon: Star },
-        { id: 'patrons', label: 'Patron Members', icon: Award },
-        { id: 'elected', label: 'Elected Members', icon: Award },
-        { id: 'committee', label: 'Committee Members', icon: Users },
-        { id: 'hospitals', label: 'Hospitals', icon: Building2 },
-        { id: 'doctors', label: 'Doctors', icon: Stethoscope },
-        { id: 'referrals', label: 'Patient Referrals', icon: HeartPulse },
-        { id: 'sponsors', label: 'Sponsors', icon: UserPlus },
-        { id: 'appointments', label: 'Appointments', icon: CalendarCheck },
-      ].map((item) => {
-        const Icon = item.icon;
-        const active = currentView === item.id;
-        return (
-          <button
-            key={item.id}
-            onClick={() => handleNavigate(item.id)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-              active
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            <span className="text-sm font-medium">{item.label}</span>
-          </button>
-        );
-      })}
     </div>
   </div>
 );
@@ -105,6 +66,8 @@ const AdminPanel = ({ onNavigate, onLogout, initialView = 'main' }) => {
           return <ReferralsPage onNavigate={handleNavigate} />;
         case 'sponsors':
           return <SponsorsPage />;
+        case 'gallery':
+          return <GalleryPage />;
         default:
         return (
           <div className="flex-1 pb-10">

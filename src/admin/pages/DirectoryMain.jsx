@@ -96,9 +96,28 @@ const DirectoryMain = ({ onNavigate, onHomeNavigate }) => {
           const trusteeCount = members.filter(member => 
             (member.type || '').toLowerCase().includes('trustee')
           ).length;
-          const patronCount = members.filter(member => 
+          // Filter patrons and remove duplicates based on membership number or name
+          const allPatrons = members.filter(member => 
             (member.type || '').toLowerCase().includes('patron')
-          ).length;
+          );
+          
+          // Remove duplicates based on membership number or name
+          const uniquePatrons = allPatrons.filter((patron, index, self) => {
+            // First try to deduplicate by membership number
+            const membershipNumber = patron['Membership number'] || patron.membership_number || patron.Membership_number;
+            if (membershipNumber) {
+              return index === self.findIndex(p => 
+                (p['Membership number'] || p.membership_number || p.Membership_number) === membershipNumber
+              );
+            }
+            // If no membership number, deduplicate by name
+            const name = patron.Name || patron.name || '';
+            return index === self.findIndex(p => 
+              (p.Name || p.name || '') === name
+            );
+          });
+          
+          const patronCount = uniquePatrons.length;
           const electedMembers = electedRes.status === 'fulfilled' ? electedRes.value.data || [] : [];
           const committeeMembers = committeeRes.status === 'fulfilled' ? committeeRes.value.data || [] : [];
           const hospitals = hospitalsRes.status === 'fulfilled' ? hospitalsRes.value.data || [] : [];

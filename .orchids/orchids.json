@@ -1,0 +1,9 @@
+{
+  "projectId": "c6774508-60f5-4ccd-b99d-27c4048aa857",
+  "createdAt": 1771572298876,
+  "version": "1.0",
+  "startupCommands": [
+    "powershell -Command \"Set-Location 'D:\\admin\\admin'; npx vite --host --port 5173\""
+  ],
+  "templateId": "any"
+}

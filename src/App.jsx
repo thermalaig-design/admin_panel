@@ -33,8 +33,8 @@ const HospitalTrusteeApp = () => {
       'admin': '/admin',
       'main': '/admin/main',
       'appointments': '/admin/appointments',
-      'referrals': '/admin/referrals'
-      
+      'referrals': '/admin/referrals',
+      'gallery': '/admin/gallery'
     };
     const route = routeMap[screen] || '/';
     navigate(route);
@@ -140,6 +140,24 @@ const HospitalTrusteeApp = () => {
             isAuthenticated ? (
               <AdminPanel 
                 initialView="referrals"
+                onNavigate={handleNavigate}
+                onLogout={() => {
+                  authService.logout();
+                  setIsAuthenticated(false);
+                  navigate('/');
+                }}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          } 
+        />
+        <Route 
+          path="/admin/gallery" 
+          element={
+            isAuthenticated ? (
+              <AdminPanel 
+                initialView="gallery"
                 onNavigate={handleNavigate}
                 onLogout={() => {
                   authService.logout();

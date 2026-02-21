@@ -308,9 +308,10 @@ export const getHospitalById = async (id) => {
 
 export const createHospital = async (hospitalData) => {
   try {
-    const { data, error } = await supabase
+    const { id: _id, ...cleanHospitalData } = hospitalData || {};
+    const { data, error } = await supabaseAdmin
       .from('hospitals')
-      .insert([hospitalData])
+      .insert([cleanHospitalData])
       .select()
       .single();
 
@@ -318,15 +319,19 @@ export const createHospital = async (hospitalData) => {
     return data;
   } catch (error) {
     console.error('Error creating hospital:', error);
+    if (error && error.message) console.error('Message:', error.message);
+    if (error && error.code) console.error('Code:', error.code);
+    if (error && error.details) console.error('Details:', error.details);
     throw error;
   }
 };
 
 export const updateHospital = async (id, hospitalData) => {
   try {
-    const { data, error } = await supabase
+    const { id: _id, ...cleanHospitalData } = hospitalData || {};
+    const { data, error } = await supabaseAdmin
       .from('hospitals')
-      .update(hospitalData)
+      .update(cleanHospitalData)
       .eq('id', id)
       .select()
       .single();
@@ -335,13 +340,16 @@ export const updateHospital = async (id, hospitalData) => {
     return data;
   } catch (error) {
     console.error('Error updating hospital:', error);
+    if (error && error.message) console.error('Message:', error.message);
+    if (error && error.code) console.error('Code:', error.code);
+    if (error && error.details) console.error('Details:', error.details);
     throw error;
   }
 };
 
 export const deleteHospital = async (id) => {
   try {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('hospitals')
       .delete()
       .eq('id', id);
@@ -350,6 +358,9 @@ export const deleteHospital = async (id) => {
     return true;
   } catch (error) {
     console.error('Error deleting hospital:', error);
+    if (error && error.message) console.error('Message:', error.message);
+    if (error && error.code) console.error('Code:', error.code);
+    if (error && error.details) console.error('Details:', error.details);
     throw error;
   }
 };
@@ -611,40 +622,89 @@ export const getDoctorById = async (id) => {
 
 export const createDoctor = async (doctorData) => {
   try {
-    const { data, error } = await supabase
-      .from('opd_schedule')
-      .insert([doctorData])
-      .select()
-      .single();
+    const { id: _id, doctor_id: _doctor_id, 'S. No.': _sno, ...rawData } = doctorData || {};
+    const cleanDoctorData = { ...rawData };
 
-    if (error) throw error;
-    return data;
+    // Retry loop: if Supabase returns PGRST204 for unknown column, remove it and retry
+    const maxRetries = 5;
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      const { data, error } = await supabaseAdmin
+        .from('opd_schedule')
+        .insert([cleanDoctorData])
+        .select()
+        .single();
+
+      if (!error) return data;
+
+      // If unknown column error, remove that column from payload and retry
+      if (error.code === 'PGRST204' && error.message) {
+        const m = error.message.match(/Could not find the '(.+?)' column/i) || [];
+        const columnName = m[1];
+        if (columnName && Object.prototype.hasOwnProperty.call(cleanDoctorData, columnName)) {
+          delete cleanDoctorData[columnName];
+          if (attempt >= maxRetries) break;
+          continue;
+        }
+      }
+
+      // Otherwise throw
+      throw error;
+    }
   } catch (error) {
     console.error('Error creating doctor:', error);
+    if (error && error.message) console.error('Message:', error.message);
+    if (error && error.code) console.error('Code:', error.code);
+    if (error && error.details) console.error('Details:', error.details);
     throw error;
   }
 };
 
 export const updateDoctor = async (id, doctorData) => {
   try {
-    const { data, error } = await supabase
-      .from('opd_schedule')
-      .update(doctorData)
-      .eq('id', id)
-      .select()
-      .single();
+    const { id: _id, doctor_id: _doctor_id, 'S. No.': _sno, ...rawData } = doctorData || {};
+    const cleanDoctorData = { ...rawData };
 
-    if (error) throw error;
-    return data;
+    // Retry loop: if Supabase returns PGRST204 for unknown column, remove it and retry
+    const maxRetries = 5;
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      const { data, error } = await supabaseAdmin
+        .from('opd_schedule')
+        .update(cleanDoctorData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (!error) return data;
+
+      if (error.code === 'PGRST204' && error.message) {
+        const m = error.message.match(/Could not find the '(.+?)' column/i) || [];
+        const columnName = m[1];
+        if (columnName && Object.prototype.hasOwnProperty.call(cleanDoctorData, columnName)) {
+          delete cleanDoctorData[columnName];
+          if (attempt >= maxRetries) break;
+          continue;
+        }
+      }
+
+      // Otherwise throw
+      throw error;
+    }
   } catch (error) {
     console.error('Error updating doctor:', error);
+    if (error && error.message) console.error('Message:', error.message);
+    if (error && error.code) console.error('Code:', error.code);
+    if (error && error.details) console.error('Details:', error.details);
     throw error;
   }
 };
 
 export const deleteDoctor = async (id) => {
   try {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('opd_schedule')
       .delete()
       .eq('id', id);
@@ -653,6 +713,9 @@ export const deleteDoctor = async (id) => {
     return true;
   } catch (error) {
     console.error('Error deleting doctor:', error);
+    if (error && error.message) console.error('Message:', error.message);
+    if (error && error.code) console.error('Code:', error.code);
+    if (error && error.details) console.error('Details:', error.details);
     throw error;
   }
 };

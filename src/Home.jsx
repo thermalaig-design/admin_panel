@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Calendar, HeartPulse, Stethoscope, Activity, Users, Building2, Clock, TrendingUp, ArrowRight, Bell, LogOut } from 'lucide-react';
+import { Database, Calendar, HeartPulse, Stethoscope, Activity, Users, Building2, Clock, TrendingUp, ArrowRight, Bell, LogOut, Camera } from 'lucide-react';
 import NotificationsSection from './admin/components/NotificationsSection';
 import { getAllAppointmentsAdmin, getAllReferralsAdmin } from './admin/services/adminApi';
 import { getAllNotifications } from './services/notificationsApi';
@@ -61,6 +61,15 @@ const Home = ({ onNavigate, onLogout }) => {
       gradient: 'from-rose-500 to-pink-600',
       lightBg: 'bg-rose-500',
       screen: 'referrals' 
+    },
+    { 
+      id: 'gallery', 
+      title: 'Gallery', 
+      desc: 'Upload & Manage Photos', 
+      icon: Camera, 
+      gradient: 'from-indigo-500 to-purple-600',
+      lightBg: 'bg-indigo-50',
+      screen: 'gallery' 
     },
   ];
 

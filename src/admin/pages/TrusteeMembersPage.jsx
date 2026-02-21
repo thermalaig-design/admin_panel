@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Star, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft } from 'lucide-react';
+import { Star, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
 import { 
   getAllMembersAdmin, 
@@ -101,6 +102,59 @@ const TrusteeMembersPage = ({ onNavigate }) => {
     setEditingItem(null);
     setFormData({ type: 'Trustee', isElected: false }); // Set default type as Trustee
     setShowAddForm(true);
+  };
+
+  const handleDownload = () => {
+    if (!filteredData.length) {
+      alert('No data to download');
+      return;
+    }
+
+    // Prepare data for Excel
+    const dataToExport = filteredData.map((item) => ({
+      'Name': item.Name || 'N/A',
+      'Membership Number': item['Membership number'] || item.membership_number || 'N/A',
+      'Mobile': item.Mobile || 'N/A',
+      'Email': item.Email || 'N/A',
+      'Type': item.type || 'N/A',
+      'Company Name': item['Company Name'] || 'N/A',
+      'Address Home': item['Address Home'] || 'N/A',
+      'Address Office': item['Address Office'] || 'N/A',
+      'Resident Landline': item['Resident Landline'] || 'N/A',
+      'Office Landline': item['Office Landline'] || 'N/A',
+      'Position': item.position || 'N/A',
+      'Location': item.location || 'N/A',
+      'Is Elected Member': item.is_elected_member ? 'Yes' : 'No'
+    }));
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Trustee Members');
+
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 20 }, // Name
+      { wch: 15 }, // Membership Number
+      { wch: 12 }, // Mobile
+      { wch: 15 }, // Email
+      { wch: 15 }, // Type
+      { wch: 20 }, // Company Name
+      { wch: 20 }, // Address Home
+      { wch: 20 }, // Address Office
+      { wch: 15 }, // Resident Landline
+      { wch: 15 }, // Office Landline
+      { wch: 15 }, // Position
+      { wch: 15 }, // Location
+      { wch: 12 }  // Is Elected Member
+    ];
+
+    // Generate filename with current date
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `Trustee_Members_${date}.xlsx`;
+
+    // Download the file
+    XLSX.writeFile(workbook, filename);
   };
 
   const handleEdit = (item) => {
@@ -488,7 +542,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Search & Add */}
+        {/* Search & Add & Download */}
         <div className="px-4 sm:px-6 mt-4 flex gap-3">
           <div className="flex-1 bg-gray-50 rounded-lg p-2 flex items-center gap-2 border border-gray-200 focus-within:border-indigo-300">
             <Search className="h-4 w-4 text-gray-400 ml-1" />
@@ -500,6 +554,13 @@ const TrusteeMembersPage = ({ onNavigate }) => {
               className="flex-1 bg-transparent border-none focus:ring-0 text-gray-800 placeholder-gray-400 text-sm py-1"
             />
           </div>
+          <button
+            onClick={handleDownload}
+            className="bg-green-600 text-white px-3 py-2 rounded-lg font-medium hover:bg-green-700 flex items-center gap-1.5 text-sm"
+          >
+            <Download className="h-4 w-4" />
+            Download
+          </button>
           <button
             onClick={handleAdd}
             className="bg-indigo-600 text-white px-3 py-2 rounded-lg font-medium hover:bg-indigo-700 flex items-center gap-1.5 text-sm"

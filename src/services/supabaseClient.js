@@ -14,4 +14,6 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Log to confirm successful connection
 console.log('✅ Supabase client initialized');
 
+// Export named and default to support both import styles
+export { supabase };
 export default supabase;
