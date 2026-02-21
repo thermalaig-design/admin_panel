@@ -1,0 +1,23 @@
+name: Deploy Admin Panel to VPS
+
+on:
+ push:
+ branches: [ "main" ] # agar aapka branch master hai to "master" kar dena
+
+jobs:
+ deploy:
+ runs-on: ubuntu-latest
+ steps:
+ - name: Deploy via SSH
+ uses: appleboy/ssh-action@v1.0.3
+ with:
+ host: ${{ secrets.VPS_HOST }}
+ username: ${{ secrets.VPS_USER }}
+ key: ${{ secrets.VPS_SSH_KEY }}
+ script: |
+ cd /var/www/admin_panel
+ git pull
+ # OPTIONAL (Node build) - agar aapko chahiye to uncomment:
+ # npm ci
+ # npm run build
+ # pm2 restart admin_panel || true
