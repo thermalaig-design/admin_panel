@@ -2,7 +2,7 @@ name: Deploy Admin Panel to VPS
 
 on:
  push:
- branches: [ "main" ] # agar aapka branch master hai to "master" kar dena
+ branches: ["main"]
 
 jobs:
  deploy:
@@ -17,7 +17,4 @@ jobs:
  script: |
  cd /var/www/admin_panel
  git pull
- # OPTIONAL (Node build) - agar aapko chahiye to uncomment:
- # npm ci
- # npm run build
- # pm2 restart admin_panel || true
+ pm2 restart admin_panel || true
