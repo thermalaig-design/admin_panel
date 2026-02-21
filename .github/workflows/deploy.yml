@@ -2,7 +2,7 @@ name: Deploy Admin Panel to VPS
 
 on:
  push:
- branches: ["main"]
+ branches: [ "main" ]
 
 jobs:
  deploy:
@@ -17,4 +17,3 @@ jobs:
  script: |
  cd /var/www/admin_panel
  git pull
- pm2 restart admin_panel || true
