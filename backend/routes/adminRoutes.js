@@ -4,6 +4,7 @@ import * as adminController from '../controllers/adminController.js';
 const router = express.Router();
 
 // Members Table routes
+router.get('/members/counts', adminController.getMemberCounts);
 router.get('/members', adminController.getAllMembers);
 router.get('/members/:id', adminController.getMemberById);
 router.post('/members', adminController.createMember);

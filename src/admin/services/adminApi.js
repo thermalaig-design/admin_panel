@@ -20,6 +20,16 @@ export const getAllMembersAdmin = async () => {
   }
 };
 
+export const getMemberCountsAdmin = async () => {
+  try {
+    const response = await adminApi.get('/admin/members/counts');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching member counts:', error);
+    throw error;
+  }
+};
+
 export const getMemberByIdAdmin = async (id) => {
   try {
     const response = await adminApi.get(`/admin/members/${id}`);

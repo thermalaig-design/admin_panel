@@ -2,16 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Star, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
-import { 
-  getAllMembersAdmin, 
-  createMember, 
-  updateMember, 
-  deleteMember,
-  getAllElectedMembersAdmin,
-  createElectedMember,
-  updateElectedMember,
-  deleteElectedMember
-} from '../services/adminApi';
+import { createMember, updateMember, deleteMember } from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 
 const TrusteeMembersPage = ({ onNavigate }) => {
   const [trusteeMembers, setTrusteeMembers] = useState([]);
@@ -32,44 +24,38 @@ const TrusteeMembersPage = ({ onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch both members and elected members
-      const [membersResponse, electedResponse] = await Promise.all([
-        getAllMembersAdmin(),
-        getAllElectedMembersAdmin()
-      ]);
-      
-      // Filter for trustee members based on type field
-      const allMembers = membersResponse?.data || [];
-      const electedMembersData = electedResponse?.data || [];
-      
-      const filteredTrustees = allMembers.filter(member => 
-        (member.type || '').toLowerCase().includes('trustee') ||
-        (member.type || '').toLowerCase().includes('board') ||
-        (member.type || '').toLowerCase().includes('chairman') ||
-        (member.type || '').toLowerCase().includes('president') ||
-        (member.type || '').toLowerCase().includes('vice')
-      );
-      
-      // Merge trustee members with their elected member details
-      const mergedTrustees = filteredTrustees.map(trustee => {
-        const electedMatch = electedMembersData.find(elected => 
-          elected.membership_number === trustee['Membership number'] ||
-          elected.membership_number === trustee.membership_number ||
-          elected.membership_number === trustee.Membership_number
-        );
-        
-        return {
-          ...trustee,
-          ...(electedMatch || {}), // Add elected details if they exist
-          // Don't add is_elected_member to member data - it belongs in elected_members table only
-          is_elected_member: !!electedMatch
-        };
-      });
-      
-      setTrusteeMembers(mergedTrustees);
+      // Fetch ALL trustees directly from Supabase in batches
+      let allData = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error: err } = await supabase
+          .from('Members Table')
+          .select('*')
+          .eq('type', 'Trustee')
+          .order('"S. No."', { ascending: true })
+          .range(from, from + batchSize - 1);
+
+        if (err) throw err;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          if (data.length < batchSize) {
+            hasMore = false;
+          } else {
+            from += batchSize;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setTrusteeMembers(allData);
     } catch (err) {
       console.error('Error loading trustee members:', err);
-      setError(`Failed to load trustee members: ${err.message || 'Please make sure backend server is running'}`);
+      setError(`Failed to load trustee members: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -78,10 +64,10 @@ const TrusteeMembersPage = ({ onNavigate }) => {
   const filteredData = useMemo(() => {
     const q = (searchQuery || '').trim().toLowerCase();
     if (!q) return trusteeMembers;
-    
+
     return trusteeMembers.filter(item => {
       try {
-        return Object.values(item).some(value => 
+        return Object.values(item).some(value =>
           value && value.toString().toLowerCase().includes(q)
         );
       } catch {
@@ -196,9 +182,9 @@ const TrusteeMembersPage = ({ onNavigate }) => {
       if (formData.convertToPatron) {
         memberType = 'Patron';
       }
-      
+
       const memberData = { ...formData, type: memberType };
-      
+
       // Extract temporary fields not needed for member creation/update
       const {
         convertToPatron: _convertToPatronValue, // UI-only field, not saved to DB
@@ -207,13 +193,13 @@ const TrusteeMembersPage = ({ onNavigate }) => {
         id: _memberIdValue, membership_number: _membershipNumberValue, // primary key and cross-table field (ignored)
         ...cleanMemberData
       } = memberData;
-      
+
       const memberPayload = cleanMemberData;
-      
+
       const isElected = isElectedValue;
       const electedPosition = positionValue;
       const electedLocation = locationValue;
-      
+
       // Add is_elected_member field if the member is elected
       if (isElected) {
         memberPayload.is_elected_member = true;
@@ -225,14 +211,14 @@ const TrusteeMembersPage = ({ onNavigate }) => {
       let membershipNumber = memberPayload['Membership number'] || editingItem?.['Membership number'];
       if (!membershipNumber) {
         // Try alternative field names
-        membershipNumber = memberPayload.membership_number || editingItem?.membership_number || 
-                           memberPayload.Membership_number || editingItem?.Membership_number;
+        membershipNumber = memberPayload.membership_number || editingItem?.membership_number ||
+          memberPayload.Membership_number || editingItem?.Membership_number;
       }
-      
+
       if (id) {
         // Update existing member
         await updateMember(id, memberPayload);
-        setTrusteeMembers(trusteeMembers.map(m => 
+        setTrusteeMembers(trusteeMembers.map(m =>
           (m.id || m['S. No.']) === id ? { ...m, ...memberPayload } : m
         ));
       } else {
@@ -244,7 +230,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
           membershipNumber = response.data['Membership number'] || response.data.membership_number;
         }
       }
-      
+
       // Handle elected member functionality if needed
       if (isElected) {
         if (membershipNumber) {
@@ -254,11 +240,11 @@ const TrusteeMembersPage = ({ onNavigate }) => {
             position: electedPosition,
             location: electedLocation
           };
-          
+
           // Check if already exists
           const electedMembers = await getAllElectedMembersAdmin();
           const existingElected = electedMembers.data.find(e => e.membership_number === membershipNumber);
-          
+
           if (existingElected) {
             // Update existing
             await updateElectedMember(existingElected.id || existingElected.elected_id || existingElected['S. No.'], electedData);
@@ -277,10 +263,10 @@ const TrusteeMembersPage = ({ onNavigate }) => {
           }
         }
       }
-      
+
       // Reload data to reflect changes
       loadData();
-      
+
       setShowAddForm(false);
       setEditingItem(null);
       setFormData({});
@@ -295,7 +281,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
         console.error('Error response data:', err.response.data);
         console.error('Error response status:', err.response.status);
       }
-      
+
       // Create a more detailed error message
       let errorMessage = 'Unknown error';
       if (err.response && err.response.data && err.response.data.message) {
@@ -303,7 +289,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
       } else if (err.message) {
         errorMessage = err.message;
       }
-      
+
       alert(`Failed to save: ${errorMessage}`);
     } finally {
       setLoading(false);
@@ -323,7 +309,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
       { key: 'Resident Landline', label: 'Resident Landline' },
       { key: 'Office Landline', label: 'Office Landline' },
     ];
-    
+
     return (
       <div className="px-6 mt-4">
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
@@ -359,7 +345,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
                 />
               </div>
             ))}
-                        
+
             {/* Convert to Patron Option */}
             <div className="md:col-span-2">
               <label className="flex items-center gap-2">
@@ -372,7 +358,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
                 <span className="text-sm font-medium text-gray-700">Convert this member to Patron?</span>
               </label>
             </div>
-                        
+
             {/* Elected Member Option */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -401,7 +387,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
                 </label>
               </div>
             </div>
-            
+
             {/* Elected Member Details - Show only if elected */}
             {formData.isElected && (
               <div className="md:col-span-2 space-y-4 pt-4 border-t border-gray-200">
@@ -578,7 +564,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
           <div className="px-4 sm:px-6 mt-4">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
               <p className="text-red-600 font-medium text-sm">{error}</p>
-              <button 
+              <button
                 onClick={loadData}
                 className="mt-2 bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-700"
               >
@@ -610,7 +596,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
                 <p className="text-gray-500 text-xs mt-1">Try adding new or search differently</p>
               </div>
             ) : null}
-            
+
             {filteredData.length > 0 && (
               <Pagination
                 currentPage={currentPage}

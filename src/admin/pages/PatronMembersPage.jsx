@@ -2,16 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Award, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
-import { 
-  getAllMembersAdmin, 
-  createMember, 
-  updateMember, 
-  deleteMember,
-  getAllElectedMembersAdmin,
-  createElectedMember,
-  updateElectedMember,
-  deleteElectedMember
-} from '../services/adminApi';
+import { createMember, updateMember, deleteMember } from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 
 const PatronMembersPage = ({ onNavigate }) => {
   const [patronMembers, setPatronMembers] = useState([]);
@@ -32,65 +24,38 @@ const PatronMembersPage = ({ onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch both members and elected members
-      const [membersResponse, electedResponse] = await Promise.all([
-        getAllMembersAdmin(),
-        getAllElectedMembersAdmin()
-      ]);
-      
-      // Filter for patron members based on type field
-      const allMembers = membersResponse?.data || [];
-      const electedMembersData = electedResponse?.data || [];
-      
-      const filteredPatrons = allMembers.filter(member => 
-        (member.type || '').toLowerCase().includes('patron') ||
-        (member.type || '').toLowerCase().includes('donor') ||
-        (member.type || '').toLowerCase().includes('supporter') ||
-        (member.type || '').toLowerCase().includes('honorary')
-      );
-      
-      // Merge patron members with their elected member details
-      const mergedPatrons = filteredPatrons.map(patron => {
-        const electedMatch = electedMembersData.find(elected => 
-          elected.membership_number === patron['Membership number'] ||
-          elected.membership_number === patron.membership_number ||
-          elected.membership_number === patron.Membership_number
-        );
-        
-        return {
-          ...patron,
-          ...(electedMatch || {}), // Add elected details if they exist
-          is_elected_member: !!electedMatch
-        };
-      });
-      
-      // Remove duplicates based on membership number or name
-      const uniquePatrons = mergedPatrons.filter((patron, index, self) => {
-        // First try to deduplicate by membership number
-        const membershipNumber = patron['Membership number'] || patron.membership_number || patron.Membership_number;
-        if (membershipNumber) {
-          return index === self.findIndex(p => 
-            (p['Membership number'] || p.membership_number || p.Membership_number) === membershipNumber
-          );
+      // Fetch ALL patrons directly from Supabase in batches
+      let allData = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error: err } = await supabase
+          .from('Members Table')
+          .select('*')
+          .eq('type', 'Patron')
+          .order('"S. No."', { ascending: true })
+          .range(from, from + batchSize - 1);
+
+        if (err) throw err;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          if (data.length < batchSize) {
+            hasMore = false;
+          } else {
+            from += batchSize;
+          }
+        } else {
+          hasMore = false;
         }
-        // If no membership number, deduplicate by name
-        const name = patron.Name || patron.name || '';
-        return index === self.findIndex(p => 
-          (p.Name || p.name || '') === name
-        );
-      });
-      
-      // Sort patrons alphabetically by name
-      const sortedPatrons = uniquePatrons.sort((a, b) => {
-        const nameA = (a.Name || a.name || '').toString().toLowerCase();
-        const nameB = (b.Name || b.name || '').toString().toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
-      
-      setPatronMembers(sortedPatrons);
+      }
+
+      setPatronMembers(allData);
     } catch (err) {
       console.error('Error loading patron members:', err);
-      setError(`Failed to load patron members: ${err.message || 'Please make sure backend server is running'}`);
+      setError(`Failed to load patron members: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -99,13 +64,13 @@ const PatronMembersPage = ({ onNavigate }) => {
   const filteredData = useMemo(() => {
     const q = (searchQuery || '').trim().toLowerCase();
     let result;
-    
+
     if (!q) {
       result = patronMembers;
     } else {
       result = patronMembers.filter(item => {
         try {
-          return Object.values(item).some(value => 
+          return Object.values(item).some(value =>
             value && value.toString().toLowerCase().includes(q)
           );
         } catch {
@@ -113,7 +78,7 @@ const PatronMembersPage = ({ onNavigate }) => {
         }
       });
     }
-    
+
     // Sort the filtered results alphabetically by name
     return result.sort((a, b) => {
       const nameA = (a.Name || a.name || '').toString().toLowerCase();
@@ -210,17 +175,17 @@ const PatronMembersPage = ({ onNavigate }) => {
     try {
       const id = item.id || item['S. No.'];
       await deleteMember(id);
-      
+
       // Remove the deleted item and maintain alphabetical order
       const updatedPatronMembers = patronMembers.filter(m => (m.id || m['S. No.']) !== id);
-      
+
       // Sort the remaining members alphabetically by name
       const sortedPatronMembers = updatedPatronMembers.sort((a, b) => {
         const nameA = (a.Name || a.name || '').toString().toLowerCase();
         const nameB = (b.Name || b.name || '').toString().toLowerCase();
         return nameA.localeCompare(nameB);
       });
-      
+
       setPatronMembers(sortedPatronMembers);
       alert('Patron member deleted successfully!');
     } catch (err) {
@@ -239,9 +204,9 @@ const PatronMembersPage = ({ onNavigate }) => {
       if (formData.convertToTrustee) {
         memberType = 'Trustee';
       }
-      
+
       const memberData = { ...formData, type: memberType };
-      
+
       // Extract temporary fields not needed for member creation/update
       const {
         convertToTrustee: _convertToTrusteeValue, // UI-only field, not saved to DB
@@ -250,13 +215,13 @@ const PatronMembersPage = ({ onNavigate }) => {
         id: _memberIdValue, membership_number: _membershipNumberValue, // primary key and cross-table field (ignored)
         ...cleanMemberData
       } = memberData;
-      
+
       const memberPayload = cleanMemberData;
-      
+
       const isElected = isElectedValue;
       const electedPosition = positionValue;
       const electedLocation = locationValue;
-      
+
       // Add is_elected_member field if the member is elected
       if (isElected) {
         memberPayload.is_elected_member = true;
@@ -268,44 +233,44 @@ const PatronMembersPage = ({ onNavigate }) => {
       let membershipNumber = memberPayload['Membership number'] || editingItem?.['Membership number'];
       if (!membershipNumber) {
         // Try alternative field names
-        membershipNumber = memberPayload.membership_number || editingItem?.membership_number || 
-                           memberPayload.Membership_number || editingItem?.Membership_number;
+        membershipNumber = memberPayload.membership_number || editingItem?.membership_number ||
+          memberPayload.Membership_number || editingItem?.Membership_number;
       }
-      
+
       if (id) {
         // Update existing member
         await updateMember(id, memberPayload);
-        const updatedPatronMembers = patronMembers.map(m => 
+        const updatedPatronMembers = patronMembers.map(m =>
           (m.id || m['S. No.']) === id ? { ...m, ...memberPayload } : m
         );
-        
+
         // Sort the updated members alphabetically by name for immediate UI update
         const sortedPatronMembers = updatedPatronMembers.sort((a, b) => {
           const nameA = (a.Name || a.name || '').toString().toLowerCase();
           const nameB = (b.Name || b.name || '').toString().toLowerCase();
           return nameA.localeCompare(nameB);
         });
-        
+
         setPatronMembers(sortedPatronMembers);
       } else {
         // Create new member
         const response = await createMember(memberPayload);
         const newPatronMembers = [...patronMembers, response.data];
-        
+
         // Sort the new members alphabetically by name for immediate UI update
         const sortedPatronMembers = newPatronMembers.sort((a, b) => {
           const nameA = (a.Name || a.name || '').toString().toLowerCase();
           const nameB = (b.Name || b.name || '').toString().toLowerCase();
           return nameA.localeCompare(nameB);
         });
-        
+
         setPatronMembers(sortedPatronMembers);
         // If this is a new member, get the membership number from the response
         if (!membershipNumber && (response?.data?.['Membership number'] || response?.data?.membership_number)) {
           membershipNumber = response.data['Membership number'] || response.data.membership_number;
         }
       }
-      
+
       // Handle elected member functionality if needed
       if (isElected) {
         if (membershipNumber) {
@@ -315,11 +280,11 @@ const PatronMembersPage = ({ onNavigate }) => {
             position: electedPosition,
             location: electedLocation
           };
-          
+
           // Check if already exists
           const electedMembers = await getAllElectedMembersAdmin();
           const existingElected = electedMembers.data.find(e => e.membership_number === membershipNumber);
-          
+
           if (existingElected) {
             // Update existing
             await updateElectedMember(existingElected.id || existingElected.elected_id || existingElected['S. No.'], electedData);
@@ -338,10 +303,10 @@ const PatronMembersPage = ({ onNavigate }) => {
           }
         }
       }
-      
+
       // Reload data to reflect changes
       loadData();
-      
+
       setShowAddForm(false);
       setEditingItem(null);
       setFormData({});
@@ -356,7 +321,7 @@ const PatronMembersPage = ({ onNavigate }) => {
         console.error('Error response data:', err.response.data);
         console.error('Error response status:', err.response.status);
       }
-      
+
       // Create a more detailed error message
       let errorMessage = 'Unknown error';
       if (err.response && err.response.data && err.response.data.message) {
@@ -364,7 +329,7 @@ const PatronMembersPage = ({ onNavigate }) => {
       } else if (err.message) {
         errorMessage = err.message;
       }
-      
+
       alert(`Failed to save: ${errorMessage}`);
     } finally {
       setLoading(false);
@@ -385,7 +350,7 @@ const PatronMembersPage = ({ onNavigate }) => {
       { key: 'Resident Landline', label: 'Resident Landline' },
       { key: 'Office Landline', label: 'Office Landline' },
     ];
-    
+
     return (
       <div className="px-6 mt-4">
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
@@ -421,7 +386,7 @@ const PatronMembersPage = ({ onNavigate }) => {
                 />
               </div>
             ))}
-                        
+
             {/* Convert to Trustee Option */}
             <div className="md:col-span-2">
               <label className="flex items-center gap-2">
@@ -434,7 +399,7 @@ const PatronMembersPage = ({ onNavigate }) => {
                 <span className="text-sm font-medium text-gray-700">Convert this member to Trustee?</span>
               </label>
             </div>
-                        
+
             {/* Elected Member Option */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -463,7 +428,7 @@ const PatronMembersPage = ({ onNavigate }) => {
                 </label>
               </div>
             </div>
-            
+
             {/* Elected Member Details - Show only if elected */}
             {formData.isElected && (
               <div className="md:col-span-2 space-y-4 pt-4 border-t border-gray-200">
@@ -640,7 +605,7 @@ const PatronMembersPage = ({ onNavigate }) => {
           <div className="px-4 sm:px-6 mt-4">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
               <p className="text-red-600 font-medium text-sm">{error}</p>
-              <button 
+              <button
                 onClick={loadData}
                 className="mt-2 bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-700"
               >
@@ -672,7 +637,7 @@ const PatronMembersPage = ({ onNavigate }) => {
                 <p className="text-gray-500 text-xs mt-1">Try adding new or search differently</p>
               </div>
             ) : null}
-            
+
             {filteredData.length > 0 && (
               <Pagination
                 currentPage={currentPage}

@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Star, Building2, Stethoscope, Award, Search, Loader, ChevronLeft } from 'lucide-react';
 import CategoryCard from '../components/CategoryCard';
-import { 
-  getAllMembersAdmin,
-  getAllHospitalsAdmin,
-  getAllElectedMembersAdmin,
-  getAllCommitteeMembersAdmin,
-  getAllDoctorsAdmin
-} from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 
 const DirectoryMain = ({ onNavigate, onHomeNavigate }) => {
     const [categories, setCategories] = useState([
@@ -78,76 +72,66 @@ const DirectoryMain = ({ onNavigate, onHomeNavigate }) => {
     const loadCounts = async () => {
       try {
         const [
-          membersRes,
-          hospitalsRes,
+          trusteeRes,
+          patronRes,
           electedRes,
           committeeRes,
+          hospitalsRes,
           doctorsRes
         ] = await Promise.allSettled([
-          getAllMembersAdmin(),
-          getAllHospitalsAdmin(),
-          getAllElectedMembersAdmin(),
-          getAllCommitteeMembersAdmin(),
-          getAllDoctorsAdmin()
+          supabase
+            .from('Members Table')
+            .select('*', { count: 'exact', head: true })
+            .ilike('type', '%trustee%'),
+          supabase
+            .from('Members Table')
+            .select('*', { count: 'exact', head: true })
+            .ilike('type', '%patron%'),
+          supabase
+            .from('elected_members')
+            .select('*', { count: 'exact', head: true }),
+          supabase
+            .from('committee_members')
+            .select('*', { count: 'exact', head: true }),
+          supabase
+            .from('hospitals')
+            .select('*', { count: 'exact', head: true }),
+          supabase
+            .from('opd_schedule')
+            .select('*', { count: 'exact', head: true }),
         ]);
 
-        setCategories(prev => {
-          const members = membersRes.status === 'fulfilled' ? membersRes.value.data || [] : [];
-          const trusteeCount = members.filter(member => 
-            (member.type || '').toLowerCase().includes('trustee')
-          ).length;
-          // Filter patrons and remove duplicates based on membership number or name
-          const allPatrons = members.filter(member => 
-            (member.type || '').toLowerCase().includes('patron')
-          );
-          
-          // Remove duplicates based on membership number or name
-          const uniquePatrons = allPatrons.filter((patron, index, self) => {
-            // First try to deduplicate by membership number
-            const membershipNumber = patron['Membership number'] || patron.membership_number || patron.Membership_number;
-            if (membershipNumber) {
-              return index === self.findIndex(p => 
-                (p['Membership number'] || p.membership_number || p.Membership_number) === membershipNumber
-              );
-            }
-            // If no membership number, deduplicate by name
-            const name = patron.Name || patron.name || '';
-            return index === self.findIndex(p => 
-              (p.Name || p.name || '') === name
-            );
-          });
-          
-          const patronCount = uniquePatrons.length;
-          const electedMembers = electedRes.status === 'fulfilled' ? electedRes.value.data || [] : [];
-          const committeeMembers = committeeRes.status === 'fulfilled' ? committeeRes.value.data || [] : [];
-          const hospitals = hospitalsRes.status === 'fulfilled' ? hospitalsRes.value.data || [] : [];
-          const doctors = doctorsRes.status === 'fulfilled' ? doctorsRes.value.data || [] : [];
+        const trusteeCount = trusteeRes.status === 'fulfilled' ? (trusteeRes.value.count ?? 0) : 0;
+        const patronCount = patronRes.status === 'fulfilled' ? (patronRes.value.count ?? 0) : 0;
+        const electedCount = electedRes.status === 'fulfilled' ? (electedRes.value.count ?? 0) : 0;
+        const committeeCount = committeeRes.status === 'fulfilled' ? (committeeRes.value.count ?? 0) : 0;
+        const hospitalsCount = hospitalsRes.status === 'fulfilled' ? (hospitalsRes.value.count ?? 0) : 0;
+        const doctorsCount = doctorsRes.status === 'fulfilled' ? (doctorsRes.value.count ?? 0) : 0;
 
-          return prev.map(category => {
-            switch(category.id) {
-              case 'trustees':
-                return { ...category, count: trusteeCount };
-              case 'patrons':
-                return { ...category, count: patronCount };
-              case 'elected':
-                return { ...category, count: electedMembers.length };
-              case 'committee':
-                return { ...category, count: committeeMembers.length };
-              case 'hospitals':
-                return { ...category, count: hospitals.length };
-              case 'doctors':
-                return { ...category, count: doctors.length };
-              default:
-                return category;
-            }
-          });
-        });
+        setCategories(prev => prev.map(category => {
+          switch(category.id) {
+            case 'trustees':
+              return { ...category, count: trusteeCount };
+            case 'patrons':
+              return { ...category, count: patronCount };
+            case 'elected':
+              return { ...category, count: electedCount };
+            case 'committee':
+              return { ...category, count: committeeCount };
+            case 'hospitals':
+              return { ...category, count: hospitalsCount };
+            case 'doctors':
+              return { ...category, count: doctorsCount };
+            default:
+              return category;
+          }
+        }));
       } catch (error) {
-      console.error('Error loading counts:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+        console.error('Error loading counts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const filteredCategories = categories.filter(category =>
     category.title.toLowerCase().includes(searchQuery.toLowerCase()) ||

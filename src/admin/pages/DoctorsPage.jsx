@@ -3,28 +3,10 @@ import { Stethoscope, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft,
 import Pagination from '../components/Pagination';
 import { uploadImage } from '../../services/galleryApi';
 import supabase from '../../services/supabaseClient';
+import DayWiseOPDScheduler from '../components/DayWiseOPDScheduler';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_FULL = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
-
-// Generate time slots between start and end with given duration (minutes)
-function generateSlots(start, end, durationMinutes) {
-  if (!start || !end || !durationMinutes || durationMinutes <= 0) return [];
-  const slots = [];
-  const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
-  let current = sh * 60 + sm;
-  const endMin = eh * 60 + em;
-  if (current >= endMin) return [];
-  while (current + durationMinutes <= endMin) {
-    const slotStart = `${String(Math.floor(current / 60)).padStart(2, '0')}:${String(current % 60).padStart(2, '0')}`;
-    const slotEndMin = current + durationMinutes;
-    const slotEnd = `${String(Math.floor(slotEndMin / 60)).padStart(2, '0')}:${String(slotEndMin % 60).padStart(2, '0')}`;
-    slots.push({ start: slotStart, end: slotEnd, label: `${fmt12(slotStart)} – ${fmt12(slotEnd)}` });
-    current += durationMinutes;
-  }
-  return slots;
-}
 
 function fmt12(time24) {
   if (!time24) return '';
@@ -32,121 +14,6 @@ function fmt12(time24) {
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 || 12;
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
-}
-
-// Check if two slot arrays have any time overlap
-function slotsOverlap(slotsA, slotsB) {
-  for (const a of slotsA) {
-    for (const b of slotsB) {
-      const aStart = toMinutes(a.start), aEnd = toMinutes(a.end);
-      const bStart = toMinutes(b.start), bEnd = toMinutes(b.end);
-      if (aStart < bEnd && aEnd > bStart) return true;
-    }
-  }
-  return false;
-}
-
-function toMinutes(t) {
-  if (!t) return 0;
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
-}
-
-// Check if a time range [startA, endA] overlaps with [startB, endB]
-function timeRangeOverlaps(startA, endA, startB, endB) {
-  if (!startA || !endA || !startB || !endB) return false;
-  const sA = toMinutes(startA), eA = toMinutes(endA);
-  const sB = toMinutes(startB), eB = toMinutes(endB);
-  if (sA >= eA || sB >= eB) return false;
-  return sA < eB && eA > sB;
-}
-
-// Generate time options across the day at given step (minutes)
-function timeOptions(step = 15) {
-  const out = [];
-  for (let m = 0; m < 24 * 60; m += step) {
-    const h = Math.floor(m / 60);
-    const mm = m % 60;
-    out.push(`${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
-  }
-  return out;
-}
-
-// Decide whether an end-time option should be disabled
-function endOptionDisabled(type, startVal, optVal, generalStart, generalEnd) {
-  if (!startVal || !optVal) return false;
-  const s = toMinutes(startVal);
-  const o = toMinutes(optVal);
-  // end must be strictly after start
-  if (o <= s) return true;
-  // for private OPD, ensure the resulting range does not overlap general OPD
-  if (type === 'private' && generalStart && generalEnd) {
-    const gs = toMinutes(generalStart);
-    const ge = toMinutes(generalEnd);
-    // if private range [s, o) overlaps [gs, ge)
-    if (s < ge && o > gs) return true;
-  }
-  return false;
-}
-
-// Add minutes to a HH:MM time string
-function addMinutes(time, mins) {
-  if (!time) return '';
-  const [h, m] = time.split(':').map(Number);
-  const tot = h * 60 + m + mins;
-  const nh = Math.floor((tot + 24 * 60) % (24 * 60) / 60);
-  const nm = (tot + 24 * 60) % 60;
-  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
-}
-
-function timeInsideRange(t, start, end) {
-  if (!t || !start || !end) return false;
-  const tt = toMinutes(t), s = toMinutes(start), e = toMinutes(end);
-  return tt >= s && tt < e;
-}
-
-// Check if a single time option falls within any general slot
-function optionInGeneral(opt, generalSlots) {
-  if (!generalSlots || generalSlots.length === 0) return false;
-  const ot = toMinutes(opt);
-  return generalSlots.some(s => ot >= toMinutes(s.start) && ot < toMinutes(s.end));
-}
-
-// Check if a candidate private range [start, end) would overlap any general slot
-function rangeOverlapsGeneral(start, end, generalSlots) {
-  if (!start || !end) return false;
-  if (!generalSlots || generalSlots.length === 0) return false;
-  const s = toMinutes(start), e = toMinutes(end);
-  if (s >= e) return true;
-  return generalSlots.some(gs => (s < toMinutes(gs.end) && e > toMinutes(gs.start)));
-}
-
-// Generic: check if an option falls inside any slot list
-function optionInSlots(opt, slots) {
-  if (!opt || !slots || slots.length === 0) return false;
-  const t = toMinutes(opt);
-  return slots.some(s => t >= toMinutes(s.start) && t < toMinutes(s.end));
-}
-
-// Generic: check if range [start,end) overlaps any slot in list
-function rangeOverlapsSlots(start, end, slots) {
-  if (!start || !end || !slots || slots.length === 0) return false;
-  const s = toMinutes(start), e = toMinutes(end);
-  if (s >= e) return true;
-  return slots.some(sl => (s < toMinutes(sl.end) && e > toMinutes(sl.start)));
-}
-
-// Time options between `from` and `to` (inclusive start, exclusive end)
-function timeOptionsRange(from = '09:00', to = '23:45', step = 15) {
-  const out = [];
-  const startMin = toMinutes(from);
-  const endMin = toMinutes(to);
-  for (let m = startMin; m <= endMin; m += step) {
-    const h = Math.floor(m / 60);
-    const mm = m % 60;
-    out.push(`${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
-  }
-  return out;
 }
 
 const DaySelector = ({ label, value, onChange }) => {
@@ -194,36 +61,6 @@ const DaySelector = ({ label, value, onChange }) => {
   );
 };
 
-// Slot chips display with delete capability
-const SlotChips = ({ slots, onDelete, color = 'blue' }) => {
-  if (!slots || slots.length === 0) return null;
-  const colorMap = {
-    blue: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600',
-    purple: 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600',
-  };
-  return (
-    <div className="flex flex-wrap gap-2 mt-3">
-      {slots.map((slot, i) => (
-        <div
-          key={i}
-          className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${colorMap[color]}`}
-        >
-          <Clock className="h-3 w-3" />
-          <span>{slot.label}</span>
-          <button
-            type="button"
-            onClick={() => onDelete(i)}
-            className="ml-0.5 opacity-50 group-hover:opacity-100 transition-opacity"
-            title="Remove slot"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-};
-
 const DoctorsPage = ({ onNavigate }) => {
   const [doctors, setDoctors] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -241,9 +78,14 @@ const DoctorsPage = ({ onNavigate }) => {
   const [deptQuery, setDeptQuery] = useState('');
   const [showDeptList, setShowDeptList] = useState(false);
 
+  // Hospital dropdown states
+  const [hospitals, setHospitals] = useState([]);
+  const [hospitalQuery, setHospitalQuery] = useState('');
+  const [showHospitalList, setShowHospitalList] = useState(false);
+
   // Slot states – arrays of { start, end, label }
-  const [generalSlots, setGeneralSlots] = useState([]);
-  const [privateSlots, setPrivateSlots] = useState([]);
+  const [generalSchedule, setGeneralSchedule] = useState([]);
+  const [privateSchedule, setPrivateSchedule] = useState([]);
 
   // Availability/Leave management states
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
@@ -262,6 +104,18 @@ const DoctorsPage = ({ onNavigate }) => {
     loadData();
   }, []);
 
+  // ensure page is at top on mount and when the add/edit detail form opens
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, []);
+
+  useEffect(() => {
+    if (showAddForm || editingItem) {
+      // jump immediately to top (no smooth animation)
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [showAddForm, editingItem]);
+
   // populate departments from loaded doctors
   useEffect(() => {
     const depts = Array.from(new Set((doctors || []).map(d => d.department).filter(Boolean)));
@@ -272,15 +126,16 @@ const DoctorsPage = ({ onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await supabase
-        .from('opd_schedule')
-        .select('*')
-        .order('consultant_name', { ascending: true });
-      if (err) throw err;
-      setDoctors(data || []);
+      const [doctorsRes, hospitalsRes] = await Promise.all([
+        supabase.from('opd_schedule').select('*').order('consultant_name', { ascending: true }),
+        supabase.from('hospitals').select('id, hospital_name, address, city, state, pincode').eq('is_active', true).order('hospital_name', { ascending: true }).limit(1000)
+      ]);
+      if (doctorsRes.error) throw doctorsRes.error;
+      setDoctors(doctorsRes.data || []);
+      if (!hospitalsRes.error) setHospitals(hospitalsRes.data || []);
     } catch (err) {
-      console.error('Error loading doctors:', err);
-      setError(`Failed to load doctors: ${err.message}`);
+      console.error('Error loading data:', err);
+      setError(`Failed to load data: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -309,19 +164,21 @@ const DoctorsPage = ({ onNavigate }) => {
     setShowAddForm(false);
     setEditingItem(null);
     setFormData({});
-    setGeneralSlots([]);
-    setPrivateSlots([]);
+    setGeneralSchedule([]);
+    setPrivateSchedule([]);
     setSlotError('');
   };
 
   const handleAdd = () => {
     setEditingItem(null);
     setFormData({ is_available_for_opd: true });
-    setGeneralSlots([]);
-    setPrivateSlots([]);
+    setGeneralSchedule([]);
+    setPrivateSchedule([]);
     setSlotError('');
     setDeptQuery('');
     setShowDeptList(false);
+    setHospitalQuery('');
+    setShowHospitalList(false);
     setShowAddForm(true);
   };
 
@@ -329,13 +186,21 @@ const DoctorsPage = ({ onNavigate }) => {
     setEditingItem(item);
     setFormData({ ...item, is_available_for_opd: item.is_available_for_opd === undefined ? true : item.is_available_for_opd });
     setDeptQuery(item.department || '');
-    // Restore saved slots
-    const gs = Array.isArray(item.general_opd_slots) ? item.general_opd_slots
-      : (item.general_opd_slots ? JSON.parse(item.general_opd_slots) : []);
-    const ps = Array.isArray(item.private_opd_slots) ? item.private_opd_slots
-      : (item.private_opd_slots ? JSON.parse(item.private_opd_slots) : []);
-    setGeneralSlots(gs);
-    setPrivateSlots(ps);
+    setHospitalQuery(item.hospital_name || '');
+    setShowHospitalList(false);
+    // Pre-fill hospital_address from hospitals list if available
+    const matchedHospital = hospitals.find(h => h.hospital_name === item.hospital_name);
+    if (matchedHospital) {
+      const addr = [matchedHospital.address, matchedHospital.city, matchedHospital.state, matchedHospital.pincode].filter(Boolean).join(', ');
+      setFormData(prev => ({ ...prev, hospital_address: addr }));
+    }
+    // Restore saved schedules (new format: array of {day, start, end, slotDuration, slots})
+    const gs = Array.isArray(item.general_opd_schedule) ? item.general_opd_schedule
+      : (item.general_opd_schedule ? JSON.parse(item.general_opd_schedule) : []);
+    const ps = Array.isArray(item.private_opd_schedule) ? item.private_opd_schedule
+      : (item.private_opd_schedule ? JSON.parse(item.private_opd_schedule) : []);
+    setGeneralSchedule(gs);
+    setPrivateSchedule(ps);
     setSlotError('');
     setShowAddForm(true);
   };
@@ -422,11 +287,6 @@ const DoctorsPage = ({ onNavigate }) => {
       return;
     }
 
-    // Validate no overlap between general and private slots
-    if (generalSlots.length > 0 && privateSlots.length > 0 && slotsOverlap(generalSlots, privateSlots)) {
-      setSlotError('General OPD aur Private OPD ke time slots overlap ho rahe hain. Please timing fix karein.');
-      return;
-    }
     setSlotError('');
 
     try {
@@ -435,15 +295,22 @@ const DoctorsPage = ({ onNavigate }) => {
 
       const payload = {
         ...formData,
-        general_opd_slots: generalSlots,
-        private_opd_slots: privateSlots,
-        general_slot_duration_minutes: formData.general_slot_duration_minutes ? parseInt(formData.general_slot_duration_minutes) : null,
-        private_slot_duration_minutes: formData.private_slot_duration_minutes ? parseInt(formData.private_slot_duration_minutes) : null,
+        general_opd_schedule: generalSchedule,
+        private_opd_schedule: privateSchedule,
       };
       // Remove id from payload
       delete payload.id;
       delete payload.doctor_id;
       delete payload['S. No.'];
+      // Remove old format fields
+      delete payload.general_opd_slots;
+      delete payload.private_opd_slots;
+      delete payload.general_opd_start;
+      delete payload.general_opd_end;
+      delete payload.private_opd_start;
+      delete payload.private_opd_end;
+      delete payload.general_slot_duration_minutes;
+      delete payload.private_slot_duration_minutes;
 
       // Supabase PGRST204-safe save: strip unknown columns on error and retry
       const saveWithRetry = async (tableFn) => {
@@ -485,61 +352,6 @@ const DoctorsPage = ({ onNavigate }) => {
       alert(`Failed to save: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Generate slots for given OPD type
-  const handleGenerateSlots = (type) => {
-    const start = type === 'general' ? formData.general_opd_start : formData.private_opd_start;
-    const end = type === 'general' ? formData.general_opd_end : formData.private_opd_end;
-    const dur = type === 'general'
-      ? parseInt(formData.general_slot_duration_minutes || formData.slot_duration_minutes || 0)
-      : parseInt(formData.private_slot_duration_minutes || formData.slot_duration_minutes || 0);
-
-    if (!start || !end) { alert('Please select start and end time first.'); return; }
-    if (!dur || dur <= 0) { alert('Please enter a valid slot duration (minutes).'); return; }
-
-    const slots = generateSlots(start, end, dur);
-    if (slots.length === 0) {
-      alert('No slots could be generated. Check that start time is before end time and duration fits.');
-      return;
-    }
-
-    if (type === 'general') {
-      setGeneralSlots(slots);
-      // validate overlap immediately
-      if (privateSlots.length > 0 && slotsOverlap(slots, privateSlots)) {
-        setSlotError('General OPD aur Private OPD ke time slots overlap ho rahe hain. Please timing fix karein.');
-      } else {
-        setSlotError('');
-      }
-    } else {
-      setPrivateSlots(slots);
-      if (generalSlots.length > 0 && slotsOverlap(generalSlots, slots)) {
-        setSlotError('General OPD aur Private OPD ke time slots overlap ho rahe hain. Please timing fix karein.');
-      } else {
-        setSlotError('');
-      }
-    }
-  };
-
-  const deleteGeneralSlot = (idx) => {
-    const next = generalSlots.filter((_, i) => i !== idx);
-    setGeneralSlots(next);
-    if (privateSlots.length > 0 && slotsOverlap(next, privateSlots)) {
-      setSlotError('Overlap detected.');
-    } else {
-      setSlotError('');
-    }
-  };
-
-  const deletePrivateSlot = (idx) => {
-    const next = privateSlots.filter((_, i) => i !== idx);
-    setPrivateSlots(next);
-    if (generalSlots.length > 0 && slotsOverlap(generalSlots, next)) {
-      setSlotError('Overlap detected.');
-    } else {
-      setSlotError('');
     }
   };
 
@@ -610,10 +422,10 @@ const DoctorsPage = ({ onNavigate }) => {
                     />
                     {showDeptList && (
                       <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-sm max-h-44 overflow-auto">
-                        {(departments.filter(d => d.toLowerCase().includes((deptQuery||'').toLowerCase())).length === 0) ? (
+                        {(departments.filter(d => d.toLowerCase().includes((deptQuery || '').toLowerCase())).length === 0) ? (
                           <div className="px-3 py-2 text-sm text-gray-500">No matches</div>
                         ) : (
-                          departments.filter(d => d.toLowerCase().includes((deptQuery||'').toLowerCase())).map(d => (
+                          departments.filter(d => d.toLowerCase().includes((deptQuery || '').toLowerCase())).map(d => (
                             <div key={d} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
                               <div className="flex-1 cursor-pointer" onMouseDown={() => { setDeptQuery(d); setFormData({ ...formData, department: d }); setShowDeptList(false); }}>{d}</div>
                               <button
@@ -644,7 +456,7 @@ const DoctorsPage = ({ onNavigate }) => {
                     </div>
                   </div>
                   {/* Current departments (chips) with delete option */}
-                  
+
                 </div>
                 <div>
                   <label className={labelClass}>Designation</label>
@@ -680,7 +492,68 @@ const DoctorsPage = ({ onNavigate }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Hospital Name</label>
-                  <input type="text" placeholder="Hospital name" value={formData.hospital_name || ''} onChange={(e) => setFormData({ ...formData, hospital_name: e.target.value })} className={inputClass} />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search hospital..."
+                      value={hospitalQuery}
+                      onChange={(e) => {
+                        const q = e.target.value;
+                        setHospitalQuery(q);
+                        setFormData({ ...formData, hospital_name: q });
+                        setShowHospitalList(true);
+                      }}
+                      onFocus={() => setShowHospitalList(true)}
+                      onBlur={() => setTimeout(() => setShowHospitalList(false), 180)}
+                      className={inputClass}
+                    />
+                    {showHospitalList && (
+                      <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-auto">
+                        {hospitals
+                          .filter(h =>
+                            !hospitalQuery ||
+                            h.hospital_name.toLowerCase().includes(hospitalQuery.toLowerCase()) ||
+                            (h.address && h.address.toLowerCase().includes(hospitalQuery.toLowerCase())) ||
+                            (h.city && h.city.toLowerCase().includes(hospitalQuery.toLowerCase()))
+                          )
+                          .length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">No hospitals found</div>
+                        ) : (
+                          hospitals
+                            .filter(h =>
+                              !hospitalQuery ||
+                              h.hospital_name.toLowerCase().includes(hospitalQuery.toLowerCase()) ||
+                              (h.address && h.address.toLowerCase().includes(hospitalQuery.toLowerCase())) ||
+                              (h.city && h.city.toLowerCase().includes(hospitalQuery.toLowerCase()))
+                            )
+                            .map(h => {
+                              const addressLine = [h.address, h.city, h.state].filter(Boolean).join(', ');
+                              return (
+                                <div
+                                  key={h.id}
+                                  onMouseDown={() => {
+                                    const addressLine = [h.address, h.city, h.state, h.pincode].filter(Boolean).join(', ');
+                                    setHospitalQuery(h.hospital_name);
+                                    setFormData({ ...formData, hospital_name: h.hospital_name, hospital_address: addressLine });
+                                    setShowHospitalList(false);
+                                  }}
+                                  className="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 last:border-0"
+                                >
+                                  <p className="text-sm font-semibold text-gray-800">{h.hospital_name}</p>
+                                  {addressLine && <p className="text-xs text-gray-500 mt-0.5">{addressLine}</p>}
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {formData.hospital_address && (
+                    <div className="mt-1.5 flex items-start gap-1.5 px-2 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg">
+                      <svg className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      <p className="text-xs text-emerald-700 font-medium leading-relaxed">{formData.hospital_address}</p>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>Unit</label>
@@ -692,7 +565,7 @@ const DoctorsPage = ({ onNavigate }) => {
                 </div>
                 <div>
                   <label className={labelClass}>Consultation Fee (₹)</label>
-                  <input type="number" placeholder="0.00" step="0.01" value={formData.consultation_fee || ''} onChange={(e) => setFormData({ ...formData, consultation_fee: e.target.value })} className={inputClass} />
+                  <input type="number" placeholder="0" step="1" min="0" value={formData.consultation_fee || ''} onChange={(e) => setFormData({ ...formData, consultation_fee: e.target.value })} className={inputClass} />
                 </div>
                 <div className="md:col-span-2">
                   <label className={labelClass}>Unit Notes</label>
@@ -731,272 +604,32 @@ const DoctorsPage = ({ onNavigate }) => {
 
             {formData.is_available_for_opd && (
               <>
-            {/* — General OPD — */}
-            <div>
-              <SectionTitle icon={Calendar} title="General OPD Schedule" color="blue" />
-              <div className="bg-blue-50/50 rounded-xl p-4 space-y-4 border border-blue-100">
-                <DaySelector
-                  label="OPD Days"
-                  value={formData.general_opd_days || ''}
-                  onChange={(val) => setFormData({ ...formData, general_opd_days: val })}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={labelClass}>
-                      <Clock className="inline h-3.5 w-3.5 mr-1 text-blue-500" />
-                      Start Time
-                    </label>
-                    <select
-                      value={formData.general_opd_start || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFormData({ ...formData, general_opd_start: val });
-                        setGeneralSlots([]);
-                        setSlotError('');
-                      }}
-                      className={inputClass}
-                    >
-                      <option value="">Select time</option>
-                      {timeOptionsRange('09:00', '23:45', 15).map(opt => (
-                        <option key={opt} value={opt} disabled={optionInSlots(opt, privateSlots)}>
-                          {fmt12(opt)}{optionInSlots(opt, privateSlots) ? ' — busy' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelClass}>
-                      <Clock className="inline h-3.5 w-3.5 mr-1 text-blue-500" />
-                      End Time
-                    </label>
-                    <select
-                      value={formData.general_opd_end || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (formData.general_opd_start && toMinutes(val) <= toMinutes(formData.general_opd_start)) {
-                          setSlotError('End time must be after Start time.');
-                          setFormData({ ...formData, general_opd_end: '' });
-                          setGeneralSlots([]);
-                          return;
-                        }
-                        // if resulting general range overlaps any private slot, reject
-                        if (rangeOverlapsSlots(formData.general_opd_start || '', val, privateSlots)) {
-                          setSlotError('General OPD range would overlap Private OPD. Choose a different end time.');
-                          setFormData({ ...formData, general_opd_end: '' });
-                          setGeneralSlots([]);
-                          return;
-                        }
-                        setFormData({ ...formData, general_opd_end: val });
-                        setGeneralSlots([]);
-                        setSlotError('');
-                      }}
-                      className={inputClass}
-                    >
-                      <option value="">Select time</option>
-                      {timeOptionsRange('09:00', '23:45', 15).map(opt => (
-                        <option key={opt} value={opt} disabled={!formData.general_opd_start || toMinutes(opt) <= toMinutes(formData.general_opd_start) || optionInSlots(opt, privateSlots) || rangeOverlapsSlots(formData.general_opd_start || '', opt, privateSlots)}>
-                          {fmt12(opt)}{optionInSlots(opt, privateSlots) ? ' — busy' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Slot Duration */}
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <label className={labelClass}>
-                      <Clock className="inline h-3.5 w-3.5 mr-1 text-blue-500" />
-                      Slot Duration (minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="240"
-                      placeholder="e.g. 15"
-                      value={formData.general_slot_duration_minutes || ''}
-                      onChange={(e) => setFormData({ ...formData, general_slot_duration_minutes: e.target.value })}
-                      className={inputClass}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleGenerateSlots('general')}
-                    className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors whitespace-nowrap"
-                  >
-                    Generate Slots
-                  </button>
-                </div>
-
-                {/* Generated Slots */}
-                {generalSlots.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-blue-700 mb-1">
-                      {generalSlots.length} slot{generalSlots.length !== 1 ? 's' : ''} generated — click × to remove
-                    </p>
-                    <SlotChips slots={generalSlots} onDelete={deleteGeneralSlot} color="blue" />
-                  </div>
-                )}
-              </div>
-            </div>
-              {/* — Private OPD — */}
-              <div>
-                <SectionTitle icon={Calendar} title="Private OPD Schedule" color="purple" />
-                <div className="bg-purple-50/50 rounded-xl p-4 space-y-4 border border-purple-100">
-                  <DaySelector
-                    label="OPD Days"
-                    value={formData.private_opd_days || ''}
-                    onChange={(val) => setFormData({ ...formData, private_opd_days: val })}
+                {/* — General OPD — */}
+                <div>
+                  <SectionTitle icon={Calendar} title="General OPD Schedule" color="blue" />
+                  <DayWiseOPDScheduler
+                    type="general"
+                    label="General OPD Days & Times"
+                    schedule={generalSchedule}
+                    onChange={setGeneralSchedule}
+                    color="blue"
+                    conflictingSchedule={privateSchedule}
                   />
-
-                  {/* Blocked time hint from General OPD */}
-                  {formData.general_opd_start && formData.general_opd_end && toMinutes(formData.general_opd_start) < toMinutes(formData.general_opd_end) && (
-                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                      <AlertCircle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
-                      <p className="text-xs text-amber-700 font-medium">
-                        General OPD blocked: <span className="font-bold">{fmt12(formData.general_opd_start)} – {fmt12(formData.general_opd_end)}</span>. Private OPD time must not overlap this range.
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelClass}>
-                        <Clock className="inline h-3.5 w-3.5 mr-1 text-purple-500" />
-                        Start Time
-                      </label>
-                      <select
-                        value={formData.private_opd_start || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFormData({ ...formData, private_opd_start: val });
-                          setPrivateSlots([]);
-                          setSlotError('');
-                        }}
-                        className={`${inputClass} ${
-                          formData.private_opd_start && formData.private_opd_end &&
-                          timeRangeOverlaps(formData.private_opd_start, formData.private_opd_end, formData.general_opd_start, formData.general_opd_end)
-                            ? 'border-red-400 bg-red-50 focus:ring-red-400 focus:border-red-400'
-                            : ''
-                        }`}
-                      >
-                        <option value="">Select time</option>
-                        {timeOptionsRange('09:00', '23:45', 15).map(opt => (
-                          <option key={opt} value={opt} disabled={optionInSlots(opt, generalSlots)}>
-                            {fmt12(opt)}{optionInSlots(opt, generalSlots) ? ' — busy' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className={labelClass}>
-                        <Clock className="inline h-3.5 w-3.5 mr-1 text-purple-500" />
-                        End Time
-                      </label>
-                      <select
-                        value={formData.private_opd_end || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (formData.private_opd_start && toMinutes(val) <= toMinutes(formData.private_opd_start)) {
-                            setSlotError('End time must be after Start time.');
-                            setFormData({ ...formData, private_opd_end: '' });
-                            setPrivateSlots([]);
-                            return;
-                          }
-                          if (rangeOverlapsSlots(formData.private_opd_start || '', val, generalSlots)) {
-                            setSlotError('Private OPD range would overlap General OPD. Choose a different end time.');
-                            setFormData({ ...formData, private_opd_end: '' });
-                            setPrivateSlots([]);
-                            return;
-                          }
-                          setFormData({ ...formData, private_opd_end: val });
-                          setPrivateSlots([]);
-                          setSlotError('');
-                        }}
-                        className={`${inputClass} ${
-                          formData.private_opd_start && formData.private_opd_end &&
-                          timeRangeOverlaps(formData.private_opd_start, formData.private_opd_end, formData.general_opd_start, formData.general_opd_end)
-                            ? 'border-red-400 bg-red-50 focus:ring-red-400 focus:border-red-400'
-                            : ''
-                        }`}
-                      >
-                        <option value="">Select time</option>
-                        {timeOptionsRange('09:00', '23:45', 15).map(opt => (
-                          <option key={opt} value={opt} disabled={!formData.private_opd_start || toMinutes(opt) <= toMinutes(formData.private_opd_start) || optionInSlots(opt, generalSlots) || rangeOverlapsSlots(formData.private_opd_start || '', opt, generalSlots)}>
-                            {fmt12(opt)}{optionInSlots(opt, generalSlots) ? ' — busy' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Inline overlap warning on time range level */}
-                  {formData.private_opd_start && formData.private_opd_end &&
-                   timeRangeOverlaps(formData.private_opd_start, formData.private_opd_end, formData.general_opd_start, formData.general_opd_end) && (
-                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
-                      <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold text-red-700">Time overlap detected!</p>
-                        <p className="text-xs text-red-600 mt-0.5">
-                          Private OPD time <span className="font-semibold">{fmt12(formData.private_opd_start)} – {fmt12(formData.private_opd_end)}</span> overlaps with General OPD <span className="font-semibold">{fmt12(formData.general_opd_start)} – {fmt12(formData.general_opd_end)}</span>. Please choose a different time range.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Slot Duration */}
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1">
-                      <label className={labelClass}>
-                        <Clock className="inline h-3.5 w-3.5 mr-1 text-purple-500" />
-                        Slot Duration (minutes)
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="240"
-                        placeholder="e.g. 20"
-                        value={formData.private_slot_duration_minutes || ''}
-                        onChange={(e) => setFormData({ ...formData, private_slot_duration_minutes: e.target.value })}
-                        className={inputClass}
-                        disabled={
-                          formData.private_opd_start && formData.private_opd_end &&
-                          timeRangeOverlaps(formData.private_opd_start, formData.private_opd_end, formData.general_opd_start, formData.general_opd_end)
-                        }
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleGenerateSlots('private')}
-                      disabled={
-                        !!(formData.private_opd_start && formData.private_opd_end &&
-                        timeRangeOverlaps(formData.private_opd_start, formData.private_opd_end, formData.general_opd_start, formData.general_opd_end))
-                      }
-                      title={
-                        formData.private_opd_start && formData.private_opd_end &&
-                        timeRangeOverlaps(formData.private_opd_start, formData.private_opd_end, formData.general_opd_start, formData.general_opd_end)
-                          ? 'Fix time overlap first'
-                          : 'Generate slots'
-                      }
-                      className="px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                    >
-                      Generate Slots
-                    </button>
-                  </div>
-
-                  {/* Generated Slots */}
-                  {privateSlots.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-purple-700 mb-1">
-                        {privateSlots.length} slot{privateSlots.length !== 1 ? 's' : ''} generated — click × to remove
-                      </p>
-                      <SlotChips slots={privateSlots} onDelete={deletePrivateSlot} color="purple" />
-                    </div>
-                  )}
                 </div>
-              </div>
 
-            </>
+                {/* — Private OPD — */}
+                <div>
+                  <SectionTitle icon={Calendar} title="Private OPD Schedule" color="purple" />
+                  <DayWiseOPDScheduler
+                    type="private"
+                    label="Private OPD Days & Times"
+                    schedule={privateSchedule}
+                    onChange={setPrivateSchedule}
+                    color="purple"
+                    conflictingSchedule={generalSchedule}
+                  />
+                </div>
+              </>
             )}
 
             {/* — Doctor Image — */}
@@ -1082,181 +715,166 @@ const DoctorsPage = ({ onNavigate }) => {
     );
   };
 
-   const renderDoctorCard = (item) => {
-      const displayName = item.consultant_name || item.Name || 'N/A';
-      const id = item.id;
-      const isOnLeave = item.is_available === false;
+  const renderDoctorCard = (item) => {
+    const displayName = item.consultant_name || item.Name || 'N/A';
+    const id = item.id;
+    const isOnLeave = item.is_available === false;
 
-      const generalSlotsParsed = (() => {
-        try {
-          const s = Array.isArray(item.general_opd_slots) ? item.general_opd_slots
-            : (item.general_opd_slots ? JSON.parse(item.general_opd_slots) : []);
-          return Array.isArray(s) ? s : [];
-        } catch { return []; }
-      })();
+    return (
+      <div key={id} className={`bg-white rounded-2xl shadow-sm border transition-all hover:shadow-md ${isOnLeave ? 'border-amber-200' : 'border-gray-100'}`}>
+        {/* Leave banner */}
+        {isOnLeave && (
+          <div className="bg-amber-50 border-b border-amber-200 rounded-t-2xl px-4 py-2 flex items-center gap-2">
+            <Calendar className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
+            <span className="text-xs font-semibold text-amber-700">
+              On Holiday
+              {item.leave_start_date && item.leave_end_date
+                ? `: ${new Date(item.leave_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} → ${new Date(item.leave_end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                : ''
+              }
+            </span>
+            {item.unavailability_reason && (
+              <span className="text-xs text-amber-500 ml-1">({item.unavailability_reason})</span>
+            )}
+          </div>
+        )}
 
-      const privateSlotsParsed = (() => {
-        try {
-          const s = Array.isArray(item.private_opd_slots) ? item.private_opd_slots
-            : (item.private_opd_slots ? JSON.parse(item.private_opd_slots) : []);
-          return Array.isArray(s) ? s : [];
-        } catch { return []; }
-      })();
+        <div className="p-5">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <h3 className="font-bold text-gray-800 text-base">{displayName}</h3>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isOnLeave ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                  }`}>
+                  {isOnLeave ? 'On Leave' : 'Available'}
+                </span>
+              </div>
+              <div className="space-y-1 text-sm text-gray-600">
+                {item.department && (
+                  <p><span className="font-medium">Dept:</span> {item.department}</p>
+                )}
+                {item.designation && (
+                  <p><span className="font-medium">Designation:</span> {item.designation}</p>
+                )}
+                {item.qualification && (
+                  <p><span className="font-medium">Qualification:</span> {item.qualification}</p>
+                )}
+                {item.unit && (
+                  <p><span className="font-medium">Unit:</span> {item.unit}</p>
+                )}
+                {item.mobile && (
+                  <p><Phone className="inline h-3.5 w-3.5 mr-1 text-gray-400" />{item.mobile}</p>
+                )}
+              </div>
+            </div>
+            {/* move avatar to the right side container and make it larger */}
+            {item.doctor_image_url ? (
+              <img
+                src={item.doctor_image_url}
+                alt={displayName}
+                className="h-32 w-32 rounded-2xl object-contain bg-white border-2 border-indigo-100 shadow-sm flex-shrink-0 ml-3 p-1"
+              />
+            ) : (
+              <div className="h-32 w-32 rounded-2xl bg-gray-50 flex items-center justify-center border border-gray-100 flex-shrink-0 ml-3">
+                <Stethoscope className="h-8 w-8 text-gray-300" />
+              </div>
+            )}
+          </div>
 
-      return (
-        <div key={id} className={`bg-white rounded-2xl shadow-sm border transition-all hover:shadow-md ${isOnLeave ? 'border-amber-200' : 'border-gray-100'}`}>
-          {/* Leave banner */}
-          {isOnLeave && (
-            <div className="bg-amber-50 border-b border-amber-200 rounded-t-2xl px-4 py-2 flex items-center gap-2">
-              <Calendar className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-              <span className="text-xs font-semibold text-amber-700">
-                On Holiday
-                {item.leave_start_date && item.leave_end_date
-                  ? `: ${new Date(item.leave_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} → ${new Date(item.leave_end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
-                  : ''
-                }
-              </span>
-              {item.unavailability_reason && (
-                <span className="text-xs text-amber-500 ml-1">({item.unavailability_reason})</span>
+          {/* OPD Schedule Info */}
+          {(item.general_opd_schedule || item.private_opd_schedule) && (
+            <div className="mb-3 space-y-1.5">
+              {item.general_opd_schedule && Array.isArray(item.general_opd_schedule) && item.general_opd_schedule.length > 0 && (
+                <div className="bg-blue-50 rounded-lg px-2.5 py-1.5 flex items-start gap-2">
+                  <Clock className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <span className="text-xs text-blue-700 font-semibold">General OPD</span>
+                    <div className="flex flex-col gap-1 mt-0.5">
+                      {item.general_opd_schedule.map((day, idx) => (
+                        <span key={idx} className="text-xs text-blue-600">
+                          <span className="font-medium">{day.day}:</span> {day.start && day.end ? `${fmt12(day.start)}–${fmt12(day.end)}` : 'Not set'}
+                          {day.slots && day.slots.length > 0 && <span className="ml-1 bg-blue-100 text-blue-600 px-1.5 rounded-full text-xs">({day.slots.length})</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {item.private_opd_schedule && Array.isArray(item.private_opd_schedule) && item.private_opd_schedule.length > 0 && (
+                <div className="bg-purple-50 rounded-lg px-2.5 py-1.5 flex items-start gap-2">
+                  <Clock className="h-3.5 w-3.5 text-purple-500 flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <span className="text-xs text-purple-700 font-semibold">Private OPD</span>
+                    <div className="flex flex-col gap-1 mt-0.5">
+                      {item.private_opd_schedule.map((day, idx) => (
+                        <span key={idx} className="text-xs text-purple-600">
+                          <span className="font-medium">{day.day}:</span> {day.start && day.end ? `${fmt12(day.start)}–${fmt12(day.end)}` : 'Not set'}
+                          {day.slots && day.slots.length > 0 && <span className="ml-1 bg-purple-100 text-purple-600 px-1.5 rounded-full text-xs">({day.slots.length})</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
 
-          <div className="p-5">
-            <div className="flex items-start gap-4 mb-4">
-              {item.doctor_image_url ? (
-                <img src={item.doctor_image_url} alt={displayName} className="h-20 w-20 rounded-xl object-cover border-2 border-indigo-100 shadow-sm flex-shrink-0" />
-              ) : (
-                <div className="h-20 w-20 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100 flex-shrink-0">
-                  <Stethoscope className="h-6 w-6 text-gray-300" />
-                </div>
-              )}
+          {/* Availability detail box */}
+          {isOnLeave && (
+            <div className="rounded-xl border bg-amber-50 border-amber-200 px-3 py-2 mb-3 flex items-center gap-2">
+              <Calendar className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <h3 className="font-bold text-gray-800 text-base">{displayName}</h3>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    isOnLeave ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
-                  }`}>
-                    {isOnLeave ? 'On Leave' : 'Available'}
+                <span className="text-xs font-bold text-amber-700">Holiday: </span>
+                {item.leave_start_date && item.leave_end_date ? (
+                  <span className="text-xs text-amber-600">
+                    {new Date(item.leave_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                    {' → '}
+                    {new Date(item.leave_end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    <span className="ml-1 text-amber-400">
+                      ({Math.ceil((new Date(item.leave_end_date) - new Date(item.leave_start_date)) / (1000 * 60 * 60 * 24)) + 1}d)
+                    </span>
                   </span>
-                </div>
-                <div className="space-y-1 text-sm text-gray-600">
-                  {item.department && (
-                    <p><span className="font-medium">Dept:</span> {item.department}</p>
-                  )}
-                  {item.designation && (
-                    <p><span className="font-medium">Designation:</span> {item.designation}</p>
-                  )}
-                  {item.qualification && (
-                    <p><span className="font-medium">Qualification:</span> {item.qualification}</p>
-                  )}
-                  {item.unit && (
-                    <p><span className="font-medium">Unit:</span> {item.unit}</p>
-                  )}
-                  {item.mobile && (
-                    <p><Phone className="inline h-3.5 w-3.5 mr-1 text-gray-400" />{item.mobile}</p>
-                  )}
-                </div>
+                ) : (
+                  <span className="text-xs text-amber-500">Dates not set</span>
+                )}
+                {item.unavailability_reason && (
+                  <span className="text-xs text-amber-400 ml-1">· {item.unavailability_reason}</span>
+                )}
               </div>
             </div>
+          )}
 
-              {/* OPD Schedule Info */}
-              {(item.general_opd_days || item.private_opd_days) && (
-                <div className="mb-3 space-y-1.5">
-                  {item.general_opd_days && (
-                    <div className="bg-blue-50 rounded-lg px-2.5 py-1.5 flex items-start gap-2">
-                      <Clock className="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <span className="text-xs text-blue-700 font-semibold">General OPD</span>
-                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-                          <span className="text-xs text-blue-600">{item.general_opd_days}</span>
-                          {item.general_opd_start && item.general_opd_end && (
-                            <span className="text-xs text-blue-500 font-medium">{fmt12(item.general_opd_start)}–{fmt12(item.general_opd_end)}</span>
-                          )}
-                          {generalSlotsParsed.length > 0 && (
-                            <span className="text-xs bg-blue-100 text-blue-600 px-1.5 rounded-full">{generalSlotsParsed.length} slots</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {item.private_opd_days && (
-                    <div className="bg-purple-50 rounded-lg px-2.5 py-1.5 flex items-start gap-2">
-                      <Clock className="h-3.5 w-3.5 text-purple-500 flex-shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <span className="text-xs text-purple-700 font-semibold">Private OPD</span>
-                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-                          <span className="text-xs text-purple-600">{item.private_opd_days}</span>
-                          {item.private_opd_start && item.private_opd_end && (
-                            <span className="text-xs text-purple-500 font-medium">{fmt12(item.private_opd_start)}–{fmt12(item.private_opd_end)}</span>
-                          )}
-                          {privateSlotsParsed.length > 0 && (
-                            <span className="text-xs bg-purple-100 text-purple-600 px-1.5 rounded-full">{privateSlotsParsed.length} slots</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Availability detail box */}
-              {isOnLeave && (
-                <div className="rounded-xl border bg-amber-50 border-amber-200 px-3 py-2 mb-3 flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-bold text-amber-700">Holiday: </span>
-                    {item.leave_start_date && item.leave_end_date ? (
-                      <span className="text-xs text-amber-600">
-                        {new Date(item.leave_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                        {' → '}
-                        {new Date(item.leave_end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        <span className="ml-1 text-amber-400">
-                          ({Math.ceil((new Date(item.leave_end_date) - new Date(item.leave_start_date)) / (1000*60*60*24)) + 1}d)
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-xs text-amber-500">Dates not set</span>
-                    )}
-                    {item.unavailability_reason && (
-                      <span className="text-xs text-amber-400 ml-1">· {item.unavailability_reason}</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-2 pt-3 border-t border-gray-100">
-              <button
-                onClick={() => handleEdit(item)}
-                className="flex-1 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg font-medium hover:bg-indigo-100 flex items-center justify-center gap-1.5 text-sm transition-colors"
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-                Edit
-              </button>
-              <button
-                onClick={() => handleOpenAvailability(item)}
-                className={`flex-1 px-3 py-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-sm transition-colors ${
-                  isOnLeave
-                    ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-                    : 'bg-green-50 text-green-700 hover:bg-green-100'
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-3 border-t border-gray-100">
+            <button
+              onClick={() => handleEdit(item)}
+              className="flex-1 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg font-medium hover:bg-indigo-100 flex items-center justify-center gap-1.5 text-sm transition-colors"
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+              Edit
+            </button>
+            <button
+              onClick={() => handleOpenAvailability(item)}
+              className={`flex-1 px-3 py-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-sm transition-colors ${isOnLeave
+                ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                : 'bg-green-50 text-green-700 hover:bg-green-100'
                 }`}
-              >
-                <Calendar className="h-3.5 w-3.5" />
-                {isOnLeave ? 'Set Holiday' : 'Availability'}
-              </button>
-              <button
-                onClick={() => handleDelete(item)}
-                className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded-lg font-medium hover:bg-red-100 flex items-center justify-center gap-1.5 text-sm transition-colors"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete
-              </button>
-            </div>
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              {isOnLeave ? 'Set Holiday' : 'Availability'}
+            </button>
+            <button
+              onClick={() => handleDelete(item)}
+              className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded-lg font-medium hover:bg-red-100 flex items-center justify-center gap-1.5 text-sm transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
           </div>
         </div>
-      );
-    };
+      </div>
+    );
+  };
 
   const renderAvailabilityModal = () => {
     if (!showAvailabilityModal || !selectedDoctorForAvailability) return null;
@@ -1303,9 +921,8 @@ const DoctorsPage = ({ onNavigate }) => {
                 {doc.department && <p className="text-xs text-gray-500 truncate">{doc.department}</p>}
                 {doc.designation && <p className="text-xs text-gray-400 truncate">{doc.designation}</p>}
               </div>
-              <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${
-                doc.is_available !== false ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-              }`}>
+              <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${doc.is_available !== false ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                }`}>
                 {doc.is_available !== false ? 'Available' : 'On Leave'}
               </span>
             </div>
@@ -1335,11 +952,10 @@ const DoctorsPage = ({ onNavigate }) => {
                 <button
                   type="button"
                   onClick={() => setAvailabilityData({ ...availabilityData, is_available: true, leave_start_date: '', leave_end_date: '', unavailability_reason: '' })}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                    availabilityData.is_available
-                      ? 'border-green-500 bg-green-50 shadow-sm'
-                      : 'border-gray-200 bg-white hover:border-gray-300'
-                  }`}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${availabilityData.is_available
+                    ? 'border-green-500 bg-green-50 shadow-sm'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
                 >
                   <div className={`p-2 rounded-full ${availabilityData.is_available ? 'bg-green-100' : 'bg-gray-100'}`}>
                     <CheckCircle className={`h-5 w-5 ${availabilityData.is_available ? 'text-green-600' : 'text-gray-400'}`} />
@@ -1353,11 +969,10 @@ const DoctorsPage = ({ onNavigate }) => {
                 <button
                   type="button"
                   onClick={() => setAvailabilityData({ ...availabilityData, is_available: false })}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                    !availabilityData.is_available
-                      ? 'border-amber-500 bg-amber-50 shadow-sm'
-                      : 'border-gray-200 bg-white hover:border-gray-300'
-                  }`}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${!availabilityData.is_available
+                    ? 'border-amber-500 bg-amber-50 shadow-sm'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
                 >
                   <div className={`p-2 rounded-full ${!availabilityData.is_available ? 'bg-amber-100' : 'bg-gray-100'}`}>
                     <Calendar className={`h-5 w-5 ${!availabilityData.is_available ? 'text-amber-600' : 'text-gray-400'}`} />
@@ -1487,7 +1102,13 @@ const DoctorsPage = ({ onNavigate }) => {
         <div className="px-4 sm:px-6 mt-4">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => onNavigate('main')}
+              onClick={() => {
+                if (showAddForm || editingItem) {
+                  resetForm();
+                } else {
+                  onNavigate('main');
+                }
+              }}
               className="bg-gray-100 text-gray-700 p-2 rounded-lg hover:bg-gray-200"
             >
               <ChevronLeft className="h-5 w-5" />

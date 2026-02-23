@@ -15,6 +15,15 @@ export const getAllMembers = async (req, res, next) => {
   }
 };
 
+export const getMemberCounts = async (req, res, next) => {
+  try {
+    const counts = await adminService.getMemberCounts();
+    res.status(200).json({ success: true, data: counts });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getMemberById = async (req, res, next) => {
   try {
     const { id } = req.params;

@@ -47,6 +47,53 @@ export const getAllMembers = async () => {
   }
 };
 
+export const getMemberCounts = async () => {
+  try {
+    // Get exact count from database using count method
+    const { count: trusteeCount, error: trusteeError } = await supabase
+      .from('Members Table')
+      .select('*', { count: 'exact', head: true })
+      .eq('type', 'Trustee');
+
+    const { count: patronCount, error: patronError } = await supabase
+      .from('Members Table')
+      .select('*', { count: 'exact', head: true })
+      .eq('type', 'Patron');
+
+    // Fallback if Members Table doesn't exist
+    if ((trusteeError?.code === 'PGRST116') || (patronError?.code === 'PGRST116')) {
+      const { count: t, error: tErr } = await supabase
+        .from('members_table')
+        .select('*', { count: 'exact', head: true })
+        .eq('type', 'Trustee');
+
+      const { count: p, error: pErr } = await supabase
+        .from('members_table')
+        .select('*', { count: 'exact', head: true })
+        .eq('type', 'Patron');
+
+      if (tErr) throw tErr;
+      if (pErr) throw pErr;
+
+      return {
+        trustee: t ?? 0,
+        patron: p ?? 0,
+      };
+    }
+
+    if (trusteeError) throw trusteeError;
+    if (patronError) throw patronError;
+
+    return {
+      trustee: trusteeCount ?? 0,
+      patron: patronCount ?? 0,
+    };
+  } catch (error) {
+    console.error('Error fetching member counts:', error);
+    throw error;
+  }
+};
+
 export const getMemberById = async (id) => {
   try {
     // Try with "Members Table" first
