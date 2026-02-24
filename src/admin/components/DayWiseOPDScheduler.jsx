@@ -293,7 +293,7 @@ function EditDayTimeSlotsModal({ day, group, color, conflictingSchedule, onSave,
       if (item.day === day && item.start && item.end) {
         let current = toMinutes(item.start);
         const end = toMinutes(item.end);
-        while (current <= end) {
+        while (current < end) {
           const h = Math.floor(current / 60);
           const m = current % 60;
           const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -784,7 +784,7 @@ export default function DayWiseOPDScheduler({
         // Add all times between start and end (in 15-min intervals)
         let current = toMinutes(item.start);
         const end = toMinutes(item.end);
-        while (current <= end) {
+        while (current < end) {
           const h = Math.floor(current / 60);
           const m = current % 60;
           const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
