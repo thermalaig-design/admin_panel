@@ -303,22 +303,6 @@ const SponsorSection = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Priority (0 = Low, 100 = High)
-                </label>
-                <input
-                  type="number"
-                  name="priority"
-                  value={formData.priority}
-                  onChange={handleInputChange}
-                  min="0"
-                  max="100"
-                  className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  placeholder="Priority (0-100)"
-                />
-              </div>
-
               <div className="flex items-center pt-6">
                 <label className="flex items-center">
                   <input
@@ -442,7 +426,6 @@ const SponsorSection = () => {
                       <p className="text-sm text-gray-500 mb-1">{sponsor.positions.join(', ')}</p>
                     )}
                     <div className="flex items-center gap-3 text-xs text-gray-500">
-                      <span>Priority: {sponsor.priority}</span>
                       <span>
                         {new Date(sponsor.created_at).toLocaleDateString()}
                       </span>

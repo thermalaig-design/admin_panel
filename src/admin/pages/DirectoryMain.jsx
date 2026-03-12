@@ -4,63 +4,62 @@ import CategoryCard from '../components/CategoryCard';
 import supabase from '../../services/supabaseClient';
 
 const DirectoryMain = ({ onNavigate, onHomeNavigate }) => {
-    const [categories, setCategories] = useState([
-      { 
-        id: 'trustees', 
-        title: 'Trustee Members', 
-        desc: 'Manage Trustee Members', 
-        icon: 'Star', 
-        color: 'bg-yellow-100', 
-        iconColor: 'text-yellow-600',
-        count: 0 
-      },
-      { 
-        id: 'patrons', 
-        title: 'Patron Members', 
-        desc: 'Manage Patron Members', 
-        icon: 'Award', 
-        color: 'bg-purple-100', 
-        iconColor: 'text-purple-600',
-        count: 0 
-      },
-      
-      { 
-        id: 'elected', 
-        title: 'Elected Members', 
-        desc: 'Manage Elected Members', 
-        icon: 'Award', 
-        color: 'bg-orange-100', 
-        iconColor: 'text-orange-600',
-        count: 0 
-      },
-      { 
-        id: 'committee', 
-        title: 'Committee Members', 
-        desc: 'Manage Committee Members', 
-        icon: 'Users', 
-        color: 'bg-blue-100', 
-        iconColor: 'text-blue-600',
-        count: 0 
-      },
-      { 
-        id: 'hospitals', 
-        title: 'Hospitals', 
-        desc: 'Manage Hospitals', 
-        icon: 'Building2', 
-        color: 'bg-green-100', 
-        iconColor: 'text-green-600',
-        count: 0 
-      },
-      { 
-        id: 'doctors', 
-        title: 'Doctors', 
-        desc: 'Manage Doctors', 
-        icon: 'Stethoscope', 
-        color: 'bg-red-100', 
-        iconColor: 'text-red-600',
-        count: 0 
-      }
-    ]);
+  const [categories, setCategories] = useState([
+    {
+      id: 'trustees',
+      title: 'Trustee Members',
+      desc: 'Manage Trustee Members',
+      icon: 'Star',
+      color: 'bg-yellow-100',
+      iconColor: 'text-yellow-600',
+      count: 0
+    },
+    {
+      id: 'patrons',
+      title: 'Patron Members',
+      desc: 'Manage Patron Members',
+      icon: 'Award',
+      color: 'bg-purple-100',
+      iconColor: 'text-purple-600',
+      count: 0
+    },
+    {
+      id: 'elected',
+      title: 'Elected Members',
+      desc: 'Manage Elected Members',
+      icon: 'Award',
+      color: 'bg-orange-100',
+      iconColor: 'text-orange-600',
+      count: 0
+    },
+    {
+      id: 'committee',
+      title: 'Committee Members',
+      desc: 'Manage Committee Members',
+      icon: 'Users',
+      color: 'bg-blue-100',
+      iconColor: 'text-blue-600',
+      count: 0
+    },
+    {
+      id: 'hospitals',
+      title: 'Hospitals',
+      desc: 'Manage Hospitals',
+      icon: 'Building2',
+      color: 'bg-green-100',
+      iconColor: 'text-green-600',
+      count: 0
+    },
+    {
+      id: 'doctors',
+      title: 'Doctors',
+      desc: 'Manage Doctors',
+      icon: 'Stethoscope',
+      color: 'bg-red-100',
+      iconColor: 'text-red-600',
+      count: 0
+    }
+  ]);
 
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,69 +68,69 @@ const DirectoryMain = ({ onNavigate, onHomeNavigate }) => {
     loadCounts();
   }, []);
 
-    const loadCounts = async () => {
-      try {
-        const [
-          trusteeRes,
-          patronRes,
-          electedRes,
-          committeeRes,
-          hospitalsRes,
-          doctorsRes
-        ] = await Promise.allSettled([
-          supabase
-            .from('Members Table')
-            .select('*', { count: 'exact', head: true })
-            .ilike('type', '%trustee%'),
-          supabase
-            .from('Members Table')
-            .select('*', { count: 'exact', head: true })
-            .ilike('type', '%patron%'),
-          supabase
-            .from('elected_members')
-            .select('*', { count: 'exact', head: true }),
-          supabase
-            .from('committee_members')
-            .select('*', { count: 'exact', head: true }),
-          supabase
-            .from('hospitals')
-            .select('*', { count: 'exact', head: true }),
-          supabase
-            .from('opd_schedule')
-            .select('*', { count: 'exact', head: true }),
-        ]);
+  const loadCounts = async () => {
+    try {
+      const [
+        trusteeRes,
+        patronRes,
+        electedRes,
+        committeeRes,
+        hospitalsRes,
+        doctorsRes
+      ] = await Promise.allSettled([
+        supabase
+          .from('Members Table')
+          .select('*', { count: 'exact', head: true })
+          .ilike('type', '%trustee%'),
+        supabase
+          .from('Members Table')
+          .select('*', { count: 'exact', head: true })
+          .ilike('type', '%patron%'),
+        supabase
+          .from('elected_members')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('committee_members')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('hospitals')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('opd_schedule')
+          .select('*', { count: 'exact', head: true }),
+      ]);
 
-        const trusteeCount = trusteeRes.status === 'fulfilled' ? (trusteeRes.value.count ?? 0) : 0;
-        const patronCount = patronRes.status === 'fulfilled' ? (patronRes.value.count ?? 0) : 0;
-        const electedCount = electedRes.status === 'fulfilled' ? (electedRes.value.count ?? 0) : 0;
-        const committeeCount = committeeRes.status === 'fulfilled' ? (committeeRes.value.count ?? 0) : 0;
-        const hospitalsCount = hospitalsRes.status === 'fulfilled' ? (hospitalsRes.value.count ?? 0) : 0;
-        const doctorsCount = doctorsRes.status === 'fulfilled' ? (doctorsRes.value.count ?? 0) : 0;
+      const trusteeCount = trusteeRes.status === 'fulfilled' ? (trusteeRes.value.count ?? 0) : 0;
+      const patronCount = patronRes.status === 'fulfilled' ? (patronRes.value.count ?? 0) : 0;
+      const electedCount = electedRes.status === 'fulfilled' ? (electedRes.value.count ?? 0) : 0;
+      const committeeCount = committeeRes.status === 'fulfilled' ? (committeeRes.value.count ?? 0) : 0;
+      const hospitalsCount = hospitalsRes.status === 'fulfilled' ? (hospitalsRes.value.count ?? 0) : 0;
+      const doctorsCount = doctorsRes.status === 'fulfilled' ? (doctorsRes.value.count ?? 0) : 0;
 
-        setCategories(prev => prev.map(category => {
-          switch(category.id) {
-            case 'trustees':
-              return { ...category, count: trusteeCount };
-            case 'patrons':
-              return { ...category, count: patronCount };
-            case 'elected':
-              return { ...category, count: electedCount };
-            case 'committee':
-              return { ...category, count: committeeCount };
-            case 'hospitals':
-              return { ...category, count: hospitalsCount };
-            case 'doctors':
-              return { ...category, count: doctorsCount };
-            default:
-              return category;
-          }
-        }));
-      } catch (error) {
-        console.error('Error loading counts:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      setCategories(prev => prev.map(category => {
+        switch (category.id) {
+          case 'trustees':
+            return { ...category, count: trusteeCount };
+          case 'patrons':
+            return { ...category, count: patronCount };
+          case 'elected':
+            return { ...category, count: electedCount };
+          case 'committee':
+            return { ...category, count: committeeCount };
+          case 'hospitals':
+            return { ...category, count: hospitalsCount };
+          case 'doctors':
+            return { ...category, count: doctorsCount };
+          default:
+            return category;
+        }
+      }));
+    } catch (error) {
+      console.error('Error loading counts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredCategories = categories.filter(category =>
     category.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -148,7 +147,7 @@ const DirectoryMain = ({ onNavigate, onHomeNavigate }) => {
         {/* Header */}
         <div className="px-4 sm:px-6 mt-6">
           <div className="flex items-center gap-3 mb-4">
-            <button 
+            <button
               onClick={() => onHomeNavigate('home')}
               className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-600"
               title="Go back to Home"
@@ -162,8 +161,8 @@ const DirectoryMain = ({ onNavigate, onHomeNavigate }) => {
           </div>
         </div>
 
-          {/* Search Section */}
-          <div className="px-4 sm:px-6 mt-4">
+        {/* Search Section */}
+        <div className="px-4 sm:px-6 mt-4">
           <div className="bg-gray-50 rounded-xl p-2 flex items-center gap-3 border border-gray-200 focus-within:border-indigo-300 transition-all">
             <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-100 ml-1">
               <Search className="h-4 w-4 text-indigo-600" />

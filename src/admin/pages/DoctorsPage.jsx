@@ -567,6 +567,23 @@ const DoctorsPage = ({ onNavigate }) => {
                   <label className={labelClass}>Consultation Fee (₹)</label>
                   <input type="number" placeholder="0" step="1" min="0" value={formData.consultation_fee || ''} onChange={(e) => setFormData({ ...formData, consultation_fee: e.target.value })} className={inputClass} />
                 </div>
+                <div>
+                  <label className={labelClass}>Max Patients Per Slot</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      placeholder="4"
+                      min="1"
+                      max="20"
+                      value={formData.max_patients_per_slot || ''}
+                      onChange={(e) => setFormData({ ...formData, max_patients_per_slot: parseInt(e.target.value) || null })}
+                      className={inputClass}
+                    />
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      How many patients can book the same time slot (default: 4)
+                    </p>
+                  </div>
+                </div>
                 <div className="md:col-span-2">
                   <label className={labelClass}>Unit Notes</label>
                   <textarea

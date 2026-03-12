@@ -9,7 +9,7 @@ const HospitalTrusteeApp = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
-  
+
   useEffect(() => {
     // Check authentication status on app load
     const checkAuthStatus = () => {
@@ -22,7 +22,7 @@ const HospitalTrusteeApp = () => {
       }
       setAuthCheckComplete(true);
     };
-    
+
     checkAuthStatus();
   }, []); // Empty dependency array to run only once
 
@@ -34,7 +34,10 @@ const HospitalTrusteeApp = () => {
       'main': '/admin/main',
       'appointments': '/admin/appointments',
       'referrals': '/admin/referrals',
-      'gallery': '/admin/gallery'
+      'gallery': '/admin/gallery',
+      'profiles': '/admin/profiles',
+      'send-message': '/admin/send-message',
+      'slot-availability': '/admin/slot-availability'
     };
     const route = routeMap[screen] || '/';
     navigate(route);
@@ -65,38 +68,38 @@ const HospitalTrusteeApp = () => {
   return (
     <div className="w-full min-h-screen overflow-y-auto">
       <Routes>
-        <Route 
-            path="/" 
-            element={
-              isAuthenticated ? (
-                <Home 
-                  onNavigate={handleNavigate}
-                  onLogout={() => {
-                    authService.logout();
-                    setIsAuthenticated(false);
-                    navigate('/login');
-                  }}
-                />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            } 
-          />
-        <Route 
-          path="/login" 
+        <Route
+          path="/"
           element={
-            <LoginForm 
+            isAuthenticated ? (
+              <Home
+                onNavigate={handleNavigate}
+                onLogout={() => {
+                  authService.logout();
+                  setIsAuthenticated(false);
+                  navigate('/login');
+                }}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <LoginForm
               onLoginSuccess={handleLoginSuccess}
               onBackToApp={() => navigate('/')}
               showBackButton={true}
             />
-          } 
+          }
         />
-        <Route 
-          path="/admin/main" 
+        <Route
+          path="/admin/main"
           element={
             isAuthenticated ? (
-              <AdminPanel 
+              <AdminPanel
                 initialView="main"
                 onNavigate={handleNavigate}
                 onLogout={() => {
@@ -108,19 +111,19 @@ const HospitalTrusteeApp = () => {
             ) : (
               <Navigate to="/login" replace />
             )
-          } 
+          }
         />
-        <Route 
-          path="/admin" 
+        <Route
+          path="/admin"
           element={
             <Navigate to="/admin/main" replace />
-          } 
+          }
         />
-        <Route 
-          path="/admin/appointments" 
+        <Route
+          path="/admin/appointments"
           element={
             isAuthenticated ? (
-              <AdminPanel 
+              <AdminPanel
                 initialView="appointments"
                 onNavigate={handleNavigate}
                 onLogout={() => {
@@ -132,13 +135,13 @@ const HospitalTrusteeApp = () => {
             ) : (
               <Navigate to="/login" replace />
             )
-          } 
+          }
         />
-        <Route 
-          path="/admin/referrals" 
+        <Route
+          path="/admin/referrals"
           element={
             isAuthenticated ? (
-              <AdminPanel 
+              <AdminPanel
                 initialView="referrals"
                 onNavigate={handleNavigate}
                 onLogout={() => {
@@ -150,13 +153,13 @@ const HospitalTrusteeApp = () => {
             ) : (
               <Navigate to="/login" replace />
             )
-          } 
+          }
         />
-        <Route 
-          path="/admin/gallery" 
+        <Route
+          path="/admin/gallery"
           element={
             isAuthenticated ? (
-              <AdminPanel 
+              <AdminPanel
                 initialView="gallery"
                 onNavigate={handleNavigate}
                 onLogout={() => {
@@ -168,7 +171,61 @@ const HospitalTrusteeApp = () => {
             ) : (
               <Navigate to="/login" replace />
             )
-          } 
+          }
+        />
+        <Route
+          path="/admin/profiles"
+          element={
+            isAuthenticated ? (
+              <AdminPanel
+                initialView="profiles"
+                onNavigate={handleNavigate}
+                onLogout={() => {
+                  authService.logout();
+                  setIsAuthenticated(false);
+                  navigate('/');
+                }}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/admin/send-message"
+          element={
+            isAuthenticated ? (
+              <AdminPanel
+                initialView="send-message"
+                onNavigate={handleNavigate}
+                onLogout={() => {
+                  authService.logout();
+                  setIsAuthenticated(false);
+                  navigate('/');
+                }}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/admin/slot-availability"
+          element={
+            isAuthenticated ? (
+              <AdminPanel
+                initialView="slot-availability"
+                onNavigate={handleNavigate}
+                onLogout={() => {
+                  authService.logout();
+                  setIsAuthenticated(false);
+                  navigate('/');
+                }}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -1,9 +1,10 @@
 import React from 'react';
-import { Users, Star, Building2, Stethoscope, Award, HeartPulse, ChevronRight } from 'lucide-react';
+import { Users, Star, Building2, Stethoscope, Award, HeartPulse, ChevronRight, User } from 'lucide-react';
 
 const CategoryCard = ({ category, onClick }) => {
   const renderIcon = () => {
     switch(category.icon) {
+      case 'User': return <User className={`h-5 w-5 ${category.iconColor}`} />;
       case 'Star': return <Star className={`h-5 w-5 ${category.iconColor}`} />;
       case 'Award': return <Award className={`h-5 w-5 ${category.iconColor}`} />;
       case 'Building2': return <Building2 className={`h-5 w-5 ${category.iconColor}`} />;

@@ -20,6 +20,7 @@ const testAppointment = {
   doctor_name: "Dr. Smith",
   department: "Cardiology",
   appointment_date: new Date().toISOString().split('T')[0],
+  appointment_time: "09:00:00", // include a time for testing
   appointment_type: "General Consultation",
   reason: "Regular checkup",
   medical_history: "No known allergies"

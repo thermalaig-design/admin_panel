@@ -12,8 +12,7 @@ const PublicSponsorDisplay = () => {
     positions: [],
     about: '',
     photo_url: '',
-    is_active: true,
-    priority: 0
+    is_active: true
   });
   const [imagePreview, setImagePreview] = useState('');
 
@@ -55,8 +54,7 @@ const PublicSponsorDisplay = () => {
               positions: Array.isArray(sponsorData.positions) ? sponsorData.positions : sponsorData.positions ? String(sponsorData.positions).split(',').map(p => p.trim()).filter(p => p) : [],
               about: sponsorData.about || '',
               photo_url: sponsorData.photo_url || '',
-              is_active: sponsorData.is_active !== undefined ? sponsorData.is_active : true,
-              priority: sponsorData.priority || 0
+              is_active: sponsorData.is_active !== undefined ? sponsorData.is_active : true
             });
             setImagePreview(sponsorData.photo_url || '');
           }
@@ -85,8 +83,7 @@ const PublicSponsorDisplay = () => {
         positions: Array.isArray(sponsor.positions) ? sponsor.positions : sponsor.positions ? String(sponsor.positions).split(',').map(p => p.trim()).filter(p => p) : [],
         about: sponsor.about || '',
         photo_url: sponsor.photo_url || '',
-        is_active: sponsor.is_active !== undefined ? sponsor.is_active : true,
-        priority: sponsor.priority || 0
+              is_active: sponsor.is_active !== undefined ? sponsor.is_active : true
       });
       setImagePreview(sponsor.photo_url || '');
       setIsEditing(true);
@@ -101,8 +98,7 @@ const PublicSponsorDisplay = () => {
       positions: [],
       about: '',
       photo_url: '',
-      is_active: true,
-      priority: 0
+      is_active: true
     });
     setImagePreview('');
   };
@@ -331,22 +327,6 @@ const PublicSponsorDisplay = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Priority (0 = Low, 100 = High)
-              </label>
-              <input
-                type="number"
-                name="priority"
-                value={formData.priority}
-                onChange={handleInputChange}
-                min="0"
-                max="100"
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                placeholder="Priority (0-100)"
-              />
-            </div>
-
             <div className="flex items-center pt-6">
               <label className="flex items-center">
                 <input
