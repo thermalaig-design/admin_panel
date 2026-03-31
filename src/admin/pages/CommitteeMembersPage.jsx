@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Users, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft } from 'lucide-react';
 import Pagination from '../components/Pagination';
-import { 
-  getAllCommitteeMembersAdmin, 
-  createCommitteeMember, 
-  updateCommitteeMember, 
-  deleteCommitteeMember 
-} from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 
 const CommitteeMembersPage = ({ onNavigate }) => {
   const [committeeMembers, setCommitteeMembers] = useState([]);
@@ -27,11 +22,15 @@ const CommitteeMembersPage = ({ onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getAllCommitteeMembersAdmin();
-      setCommitteeMembers(response?.data || []);
+      const { data, error: err } = await supabase
+        .from('committee_members')
+        .select('*')
+        .order('id', { ascending: true });
+      if (err) throw err;
+      setCommitteeMembers(data || []);
     } catch (err) {
       console.error('Error loading committee members:', err);
-      setError(`Failed to load committee members: ${err.message || 'Please make sure backend server is running'}`);
+      setError(`Failed to load committee members: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -78,38 +77,41 @@ const CommitteeMembersPage = ({ onNavigate }) => {
     }
 
     try {
-      const id = item.id || item.committee_id || item['S. No.'];
-      await deleteCommitteeMember(id);
-      setCommitteeMembers(committeeMembers.filter(c => (c.id || c.committee_id || c['S. No.']) !== id));
+      const id = item.id || item.committee_id;
+      const { error: err } = await supabase.from('committee_members').delete().eq('id', id);
+      if (err) throw err;
+      setCommitteeMembers(committeeMembers.filter(c => (c.id || c.committee_id) !== id));
       alert('Committee member deleted successfully!');
     } catch (err) {
       console.error('Error deleting committee member:', err);
-      alert(`Failed to delete: ${err.message || 'Unknown error'}`);
+      alert(`Failed to delete: ${err.message}`);
     }
   };
 
   const handleSave = async () => {
     try {
       setLoading(true);
-      const id = editingItem?.id || editingItem?.committee_id || editingItem?.['S. No.'];
+      const id = editingItem?.id || editingItem?.committee_id;
 
       if (id) {
-        await updateCommitteeMember(id, formData);
-        setCommitteeMembers(committeeMembers.map(c => 
-          (c.id || c.committee_id || c['S. No.']) === id ? { ...c, ...formData } : c
+        const { error: err } = await supabase.from('committee_members').update(formData).eq('id', id);
+        if (err) throw err;
+        setCommitteeMembers(committeeMembers.map(c =>
+          (c.id || c.committee_id) === id ? { ...c, ...formData } : c
         ));
       } else {
-        const newCommitteeMember = await createCommitteeMember(formData);
-        setCommitteeMembers([...committeeMembers, newCommitteeMember.data]);
+        const { data: newRow, error: err } = await supabase.from('committee_members').insert(formData).select().single();
+        if (err) throw err;
+        setCommitteeMembers([...committeeMembers, newRow]);
       }
-      
+
       setShowAddForm(false);
       setEditingItem(null);
       setFormData({});
       alert(editingItem ? 'Committee member updated successfully!' : 'Committee member added successfully!');
     } catch (err) {
       console.error('Error saving committee member:', err);
-      alert(`Failed to save: ${err.message || 'Unknown error'}`);
+      alert(`Failed to save: ${err.message}`);
     } finally {
       setLoading(false);
     }

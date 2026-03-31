@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Award, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft } from 'lucide-react';
-import { 
-  getAllMembersAdmin, 
-  getAllElectedMembersAdmin,
-  createElectedMember,
-  updateElectedMember,
-  deleteElectedMember
-} from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 import Pagination from '../components/Pagination';
 
 const ElectedMembersPage = ({ onNavigate }) => {
@@ -28,43 +22,38 @@ const ElectedMembersPage = ({ onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch both members and elected members
-      const [membersResponse, electedResponse] = await Promise.all([
-        getAllMembersAdmin(),
-        getAllElectedMembersAdmin()
+      // Fetch both tables directly from Supabase
+      const [electedRes, membersRes] = await Promise.all([
+        supabase.from('elected_members').select('*').order('id', { ascending: true }),
+        supabase.from('Members Table').select('*')
       ]);
 
-      const allMembers = membersResponse?.data || [];
-      const electedMembersData = electedResponse?.data || [];
+      if (electedRes.error) throw electedRes.error;
+
+      const electedMembersData = electedRes.data || [];
+      const allMembers = membersRes.data || [];
 
       // Merge the data by matching membership numbers
       const mergedData = electedMembersData.map(elected => {
-        // Find the corresponding member record
-        const memberMatch = allMembers.find(member => 
+        const memberMatch = allMembers.find(member =>
           member['Membership number'] === elected.membership_number ||
           member.membership_number === elected.membership_number ||
           member.Membership_number === elected.membership_number
         );
-
-        // Combine the elected member data with member data
         return {
-          ...memberMatch || {}, // Base with member data if found
-          ...elected, // Override with elected data
-          // Make sure we preserve elected-specific fields
+          ...memberMatch || {},
+          ...elected,
           membership_number: elected.membership_number || (memberMatch && memberMatch['Membership number']),
           position: elected.position,
           location: elected.location,
-          // Remove is_elected_member from merged data to prevent sending to API
-          // is_elected_member: elected.is_elected_member,
-          // Ensure we have the correct ID for operations
-          elected_id: elected.id || elected.elected_id || elected['S. No.']
+          elected_id: elected.id
         };
       });
 
       setElectedMembers(mergedData);
     } catch (err) {
       console.error('Error loading elected members:', err);
-      setError(`Failed to load elected members: ${err.message || 'Please make sure backend server is running'}`);
+      setError(`Failed to load elected members: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -115,54 +104,43 @@ const ElectedMembersPage = ({ onNavigate }) => {
     }
 
     try {
-      // Delete from elected_members table
-      const electedId = item.id || item.elected_id || item['S. No.'];
-      await deleteElectedMember(electedId);
-      
-      setElectedMembers(electedMembers.filter(m => 
-        (m.id || m.elected_id || m['S. No.']) !== electedId
-      ));
+      const electedId = item.id || item.elected_id;
+      const { error: err } = await supabase.from('elected_members').delete().eq('id', electedId);
+      if (err) throw err;
+      setElectedMembers(electedMembers.filter(m => (m.id || m.elected_id) !== electedId));
       alert('Elected member deleted successfully!');
     } catch (err) {
       console.error('Error deleting elected member:', err);
-      alert(`Failed to delete: ${err.message || 'Unknown error'}`);
+      alert(`Failed to delete: ${err.message}`);
     }
   };
 
   const handleSave = async () => {
     try {
       setLoading(true);
-      const id = editingItem?.id || editingItem?.elected_id || editingItem?.['S. No.'];
+      const id = editingItem?.id || editingItem?.elected_id;
+      const payload = {
+        membership_number: formData.membership_number,
+        position: formData.position,
+        location: formData.location
+      };
 
       if (id) {
-        // Update elected member
-        await updateElectedMember(id, {
-          membership_number: formData.membership_number,
-          position: formData.position,
-          location: formData.location
-        });
-        
-        // Refresh the data
-        loadData();
+        const { error: err } = await supabase.from('elected_members').update(payload).eq('id', id);
+        if (err) throw err;
       } else {
-        // Create new elected member
-        await createElectedMember({
-          membership_number: formData.membership_number,
-          position: formData.position,
-          location: formData.location
-        });
-        
-        // Refresh the data
-        loadData();
+        const { error: err } = await supabase.from('elected_members').insert(payload);
+        if (err) throw err;
       }
-      
+
+      await loadData();
       setShowAddForm(false);
       setEditingItem(null);
       setFormData({});
       alert(editingItem ? 'Elected member updated successfully!' : 'Elected member added successfully!');
     } catch (err) {
       console.error('Error saving elected member:', err);
-      alert(`Failed to save: ${err.message || 'Unknown error'}`);
+      alert(`Failed to save: ${err.message}`);
     } finally {
       setLoading(false);
     }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Star, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
-import { createMember, updateMember, deleteMember } from '../services/adminApi';
+// All data operations use direct Supabase — no backend needed
 import supabase from '../../services/supabaseClient';
 
 const TrusteeMembersPage = ({ onNavigate }) => {
@@ -163,12 +163,13 @@ const TrusteeMembersPage = ({ onNavigate }) => {
 
     try {
       const id = item.id || item['S. No.'];
-      await deleteMember(id);
+      const { error: err } = await supabase.from('Members Table').delete().eq('id', id);
+      if (err) throw err;
       setTrusteeMembers(trusteeMembers.filter(m => (m.id || m['S. No.']) !== id));
       alert('Trustee member deleted successfully!');
     } catch (err) {
       console.error('Error deleting trustee member:', err);
-      alert(`Failed to delete: ${err.message || 'Unknown error'}`);
+      alert(`Failed to delete: ${err.message}`);
     }
   };
 
@@ -217,50 +218,38 @@ const TrusteeMembersPage = ({ onNavigate }) => {
 
       if (id) {
         // Update existing member
-        await updateMember(id, memberPayload);
+        const { error: updateErr } = await supabase.from('Members Table').update(memberPayload).eq('id', id);
+        if (updateErr) throw updateErr;
         setTrusteeMembers(trusteeMembers.map(m =>
           (m.id || m['S. No.']) === id ? { ...m, ...memberPayload } : m
         ));
       } else {
         // Create new member
-        const response = await createMember(memberPayload);
-        setTrusteeMembers([...trusteeMembers, response.data]);
-        // If this is a new member, get the membership number from the response
-        if (!membershipNumber && (response?.data?.['Membership number'] || response?.data?.membership_number)) {
-          membershipNumber = response.data['Membership number'] || response.data.membership_number;
+        const { data: newRow, error: insertErr } = await supabase.from('Members Table').insert(memberPayload).select().single();
+        if (insertErr) throw insertErr;
+        setTrusteeMembers([...trusteeMembers, newRow]);
+        if (!membershipNumber && newRow?.['Membership number']) {
+          membershipNumber = newRow['Membership number'];
         }
       }
 
-      // Handle elected member functionality if needed
-      if (isElected) {
-        if (membershipNumber) {
-          // Add to elected_members table
-          const electedData = {
-            membership_number: membershipNumber,
-            position: electedPosition,
-            location: electedLocation
-          };
-
-          // Check if already exists
-          const electedMembers = await getAllElectedMembersAdmin();
-          const existingElected = electedMembers.data.find(e => e.membership_number === membershipNumber);
-
-          if (existingElected) {
-            // Update existing
-            await updateElectedMember(existingElected.id || existingElected.elected_id || existingElected['S. No.'], electedData);
-          } else {
-            // Create new
-            await createElectedMember(electedData);
-          }
+      // Handle elected member functionality if needed (via Supabase directly)
+      if (isElected && membershipNumber) {
+        const electedData = {
+          membership_number: membershipNumber,
+          position: electedPosition,
+          location: electedLocation
+        };
+        const { data: existing } = await supabase.from('elected_members').select('id').eq('membership_number', membershipNumber).maybeSingle();
+        if (existing) {
+          await supabase.from('elected_members').update(electedData).eq('id', existing.id);
+        } else {
+          await supabase.from('elected_members').insert(electedData);
         }
-      } else if (editingItem && editingItem.is_elected_member && !isElected) {
-        // Remove from elected_members table if user unchecked elected option
-        if (membershipNumber) {
-          const electedMembers = await getAllElectedMembersAdmin();
-          const electedRecord = electedMembers.data.find(e => e.membership_number === membershipNumber);
-          if (electedRecord) {
-            await deleteElectedMember(electedRecord.id || electedRecord.elected_id || electedRecord['S. No.']);
-          }
+      } else if (editingItem && editingItem.is_elected_member && !isElected && membershipNumber) {
+        const { data: electedRecord } = await supabase.from('elected_members').select('id').eq('membership_number', membershipNumber).maybeSingle();
+        if (electedRecord) {
+          await supabase.from('elected_members').delete().eq('id', electedRecord.id);
         }
       }
 
