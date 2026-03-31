@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Building2, Search, Plus, Edit2, Trash2, X, Save, Loader, ChevronLeft } from 'lucide-react';
 import Pagination from '../components/Pagination';
-import { 
-  getAllHospitalsAdmin, 
-  createHospital, 
-  updateHospital, 
-  deleteHospital 
-} from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 
 const HospitalsPage = ({ onNavigate }) => {
   const [hospitals, setHospitals] = useState([]);
@@ -27,11 +22,15 @@ const HospitalsPage = ({ onNavigate }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getAllHospitalsAdmin();
-      setHospitals(response?.data || []);
+      const { data, error: err } = await supabase
+        .from('hospitals')
+        .select('*')
+        .order('hospital_name', { ascending: true });
+      if (err) throw err;
+      setHospitals(data || []);
     } catch (err) {
       console.error('Error loading hospitals:', err);
-      setError(`Failed to load hospitals: ${err.message || 'Please make sure backend server is running'}`);
+      setError(`Failed to load hospitals: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -78,9 +77,10 @@ const HospitalsPage = ({ onNavigate }) => {
     }
 
     try {
-      const id = item.id || item.hospital_id || item['S. No.'];
-      await deleteHospital(id);
-      setHospitals(hospitals.filter(h => (h.id || h.hospital_id || h['S. No.']) !== id));
+      const id = item.id;
+      const { error: err } = await supabase.from('hospitals').delete().eq('id', id);
+      if (err) throw err;
+      setHospitals(hospitals.filter(h => h.id !== id));
       alert('Hospital deleted successfully!');
     } catch (err) {
       console.error('Error deleting hospital:', err);
@@ -89,18 +89,33 @@ const HospitalsPage = ({ onNavigate }) => {
   };
 
   const handleSave = async () => {
+    if (!formData.hospital_name?.trim()) {
+      alert('Hospital name is required.');
+      return;
+    }
     try {
       setLoading(true);
-      const id = editingItem?.id || editingItem?.hospital_id || editingItem?.['S. No.'];
+      const id = editingItem?.id;
+
+      // Strip id from payload
+      const payload = { ...formData };
+      delete payload.id;
 
       if (id) {
-        await updateHospital(id, formData);
-        setHospitals(hospitals.map(h => 
-          (h.id || h.hospital_id || h['S. No.']) === id ? { ...h, ...formData } : h
-        ));
+        const { error: err } = await supabase
+          .from('hospitals')
+          .update(payload)
+          .eq('id', id);
+        if (err) throw err;
+        setHospitals(hospitals.map(h => h.id === id ? { ...h, ...payload, id } : h));
       } else {
-        const newHospital = await createHospital(formData);
-        setHospitals([...hospitals, newHospital.data]);
+        const { data, error: err } = await supabase
+          .from('hospitals')
+          .insert([payload])
+          .select()
+          .single();
+        if (err) throw err;
+        setHospitals([...hospitals, data]);
       }
       
       setShowAddForm(false);
