@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.PROD 
-  ? 'https://admin-self-seven.vercel.app/api' 
-  : '/api'; // Use proxy in development
+const API_BASE_URL =
+  import.meta.env.VITE_ADMIN_API_BASE_URL ||
+  '/api'; // Dev proxy or production rewrite
 
 // Create axios instance
 export const adminApi = axios.create({
@@ -428,4 +428,3 @@ export const deleteReferral = async (id) => {
     throw error;
   }
 };
-
