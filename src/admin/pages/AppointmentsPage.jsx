@@ -6,10 +6,7 @@ import {
   BadgeCheck, RefreshCw, Loader, MessageSquare,
   AlertCircle, Heart
 } from 'lucide-react';
-import {
-  getAllAppointmentsAdmin,
-  updateAppointment
-} from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 import AppointmentDetailPage from './AppointmentDetailPage';
 import Pagination from '../components/Pagination';
 
@@ -109,12 +106,16 @@ const AppointmentsPage = () => {
   const loadAppointments = async () => {
     try {
       setLoading(true);
-      const response = await getAllAppointmentsAdmin();
-      setAppointments(response.data || []);
+      const { data, error: err } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (err) throw err;
+      setAppointments(data || []);
       setError(null);
     } catch (err) {
       console.error('Error loading appointments:', err);
-      setError('Failed to load appointments. Please make sure backend server is running.');
+      setError('Failed to load appointments: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -211,7 +212,8 @@ const AppointmentsPage = () => {
     }
 
     try {
-      await updateAppointment(appointmentId, { status: newStatus });
+      const { error: se } = await supabase.from('appointments').update({ status: newStatus }).eq('id', appointmentId);
+      if (se) throw se;
       setAppointments(prev => prev.map(app =>
         app.id === appointmentId ? { ...app, status: newStatus } : app
       ));
@@ -229,7 +231,8 @@ const AppointmentsPage = () => {
     e.stopPropagation();
     try {
       setCompleteLoading(appointmentId);
-      await updateAppointment(appointmentId, { status: 'Completed' });
+      const { error: ce } = await supabase.from('appointments').update({ status: 'Completed' }).eq('id', appointmentId);
+      if (ce) throw ce;
       setAppointments(prev => prev.map(app =>
         app.id === appointmentId ? { ...app, status: 'Completed' } : app
       ));
@@ -256,7 +259,8 @@ const AppointmentsPage = () => {
     }
     try {
       setRejectLoading(true);
-      await updateAppointment(showRejectModal.id, { status: 'Cancelled', remark: rejectRemark });
+      const { error: re } = await supabase.from('appointments').update({ status: 'Cancelled', remark: rejectRemark }).eq('id', showRejectModal.id);
+      if (re) throw re;
       setAppointments(prev => prev.map(app =>
         app.id === showRejectModal.id ? { ...app, status: 'Cancelled', remark: rejectRemark } : app
       ));
@@ -300,7 +304,8 @@ const AppointmentsPage = () => {
         updateData.remark = rescheduleData.remark.trim();
       }
 
-      await updateAppointment(showRescheduleModal.id, updateData);
+      const { error: rse } = await supabase.from('appointments').update(updateData).eq('id', showRescheduleModal.id);
+      if (rse) throw rse;
       setAppointments(prev => prev.map(app =>
         app.id === showRescheduleModal.id
           ? {
@@ -337,10 +342,8 @@ const AppointmentsPage = () => {
       setRemarkLoading(true);
 
       if (showRemarkModal.action === 'accept') {
-        await updateAppointment(showRemarkModal.id, {
-          status: 'Confirmed',
-          remark: remarkText
-        });
+        const { error: ae } = await supabase.from('appointments').update({ status: 'Confirmed', remark: remarkText }).eq('id', showRemarkModal.id);
+        if (ae) throw ae;
         setAppointments(prev => prev.map(app =>
           app.id === showRemarkModal.id
             ? { ...app, status: 'Confirmed', remark: remarkText }
@@ -348,7 +351,8 @@ const AppointmentsPage = () => {
         ));
         setSuccessMessage('Appointment accepted with remark!');
       } else {
-        await updateAppointment(showRemarkModal.id, { remark: remarkText });
+        const { error: rme } = await supabase.from('appointments').update({ remark: remarkText }).eq('id', showRemarkModal.id);
+        if (rme) throw rme;
         setAppointments(prev => prev.map(app =>
           app.id === showRemarkModal.id ? { ...app, remark: remarkText } : app
         ));

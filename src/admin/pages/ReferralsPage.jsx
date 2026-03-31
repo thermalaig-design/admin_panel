@@ -7,11 +7,7 @@ import {
   } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import ReferralDetailPage from './ReferralDetailPage';
-import { 
-  getAllReferralsAdmin, 
-  updateReferral,
-  deleteReferral
-} from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 
 const ReferralsPage = () => {
   const [referrals, setReferrals] = useState([]);
@@ -47,11 +43,15 @@ const ReferralsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getAllReferralsAdmin();
-      setReferrals(response?.data || []);
+      const { data, error: err } = await supabase
+        .from('referrals')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (err) throw err;
+      setReferrals(data || []);
     } catch (err) {
       console.error('Error loading referrals:', err);
-      setError(`Failed to load referrals: ${err.message || 'Please make sure backend server is running'}`);
+      setError(`Failed to load referrals: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -128,14 +128,15 @@ const ReferralsPage = () => {
   const handleStatusChange = async (e, referralId, newStatus) => {
     e.stopPropagation();
     try {
-      await updateReferral(referralId, { status: newStatus });
-      
-      // Show success toast
+      const { error: err } = await supabase
+        .from('referrals')
+        .update({ status: newStatus })
+        .eq('id', referralId);
+      if (err) throw err;
+      setReferrals(prev => prev.map(r => r.id === referralId ? { ...r, status: newStatus } : r));
       setSuccessMessage(`Referral ${newStatus.toLowerCase()} successfully!`);
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
-      
-      loadData();
     } catch (error) {
       console.error('Error updating referral status:', error);
       alert(`Failed to update referral status: ${error.message}`);
@@ -144,15 +145,13 @@ const ReferralsPage = () => {
 
   const handleDelete = async (referralId) => {
     try {
-      await deleteReferral(referralId);
-      
-      // Show success toast
+      const { error: err } = await supabase.from('referrals').delete().eq('id', referralId);
+      if (err) throw err;
+      setReferrals(prev => prev.filter(r => r.id !== referralId));
+      setShowDeleteConfirm(null);
       setSuccessMessage('Referral deleted successfully!');
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
-      
-      loadData();
-      setShowDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting referral:', error);
       alert(`Failed to delete referral: ${error.message}`);
@@ -180,23 +179,21 @@ const ReferralsPage = () => {
       alert('Please select both date and time');
       return;
     }
-    
     try {
       setRescheduleLoading(true);
       const newDateTime = new Date(`${rescheduleData.date}T${rescheduleData.time}`);
-      await updateReferral(showRescheduleModal.id, { 
-        created_at: newDateTime.toISOString(),
-        status: 'Pending'
-      });
-      setReferrals(prev => prev.map(ref => 
-        ref.id === showRescheduleModal.id 
-          ? { ...ref, created_at: newDateTime.toISOString(), status: 'Pending' } 
+      const { error: err } = await supabase
+        .from('referrals')
+        .update({ created_at: newDateTime.toISOString(), status: 'Pending' })
+        .eq('id', showRescheduleModal.id);
+      if (err) throw err;
+      setReferrals(prev => prev.map(ref =>
+        ref.id === showRescheduleModal.id
+          ? { ...ref, created_at: newDateTime.toISOString(), status: 'Pending' }
           : ref
       ));
       setShowRescheduleModal(null);
       setRescheduleData({ date: '', time: '' });
-      
-      // Show success toast
       setSuccessMessage('Referral rescheduled successfully!');
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
@@ -211,14 +208,16 @@ const ReferralsPage = () => {
   const handleSaveRemark = async () => {
     try {
       setRemarkLoading(true);
-      await updateReferral(showRemarkModal.id, { remark: remarkText });
-      setReferrals(prev => prev.map(ref => 
+      const { error: err } = await supabase
+        .from('referrals')
+        .update({ remark: remarkText })
+        .eq('id', showRemarkModal.id);
+      if (err) throw err;
+      setReferrals(prev => prev.map(ref =>
         ref.id === showRemarkModal.id ? { ...ref, remark: remarkText } : ref
       ));
       setShowRemarkModal(null);
       setRemarkText('');
-
-      // Show success toast
       setSuccessMessage('Remark saved successfully!');
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
@@ -234,26 +233,17 @@ const ReferralsPage = () => {
   const handleCancelWithRemark = async (referralId) => {
     try {
       setRemarkLoading(true);
-      // First save the remark if provided
       if (remarkText.trim()) {
-        await updateReferral(referralId, { remark: remarkText });
-        setReferrals(prev => prev.map(ref => 
-          ref.id === referralId ? { ...ref, remark: remarkText } : ref
-        ));
+        await supabase.from('referrals').update({ remark: remarkText }).eq('id', referralId);
       }
-      
-      // Then delete the referral
-      await deleteReferral(referralId);
-      
+      const { error: err } = await supabase.from('referrals').delete().eq('id', referralId);
+      if (err) throw err;
+      setReferrals(prev => prev.filter(r => r.id !== referralId));
       setShowRemarkModal(null);
       setRemarkText('');
-      
-      // Show success toast
       setSuccessMessage('Referral cancelled successfully!');
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
-      
-      loadData();
     } catch (err) {
       console.error('Error cancelling referral:', err);
       alert('Failed to cancel referral: ' + err.message);
@@ -266,19 +256,19 @@ const ReferralsPage = () => {
   const handleRemarkUpdate = async () => {
     try {
       setRemarkLoading(true);
-      await updateReferral(showRemarkModal.id, { remark: remarkText });
-      setReferrals(prev => prev.map(ref => 
+      const { error: err } = await supabase
+        .from('referrals')
+        .update({ remark: remarkText })
+        .eq('id', showRemarkModal.id);
+      if (err) throw err;
+      setReferrals(prev => prev.map(ref =>
         ref.id === showRemarkModal.id ? { ...ref, remark: remarkText } : ref
       ));
       setShowRemarkModal(null);
       setRemarkText('');
-      
-      // Show success toast
       setSuccessMessage('Remark updated successfully!');
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
-      
-      loadData();
     } catch (err) {
       console.error('Error updating remark:', err);
       alert('Failed to update remark: ' + err.message);

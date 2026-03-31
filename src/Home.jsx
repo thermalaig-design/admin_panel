@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Database, Calendar, HeartPulse, Stethoscope, Activity, Users, Building2, Clock, TrendingUp, ArrowRight, Bell, LogOut, Camera, UserCircle, MessageSquare } from 'lucide-react';
 import NotificationsSection from './admin/components/NotificationsSection';
-import { getAllAppointmentsAdmin, getAllReferralsAdmin } from './admin/services/adminApi';
+import supabase from './services/supabaseClient';
 import { getAllNotifications } from './services/notificationsApi';
 import PublicSponsorDisplay from './components/PublicSponsorDisplay';
 
@@ -15,14 +15,14 @@ const Home = ({ onNavigate, onLogout }) => {
   const loadStatsData = async () => {
     try {
       const [appointmentsRes, referralsRes, notificationsRes] = await Promise.allSettled([
-        getAllAppointmentsAdmin(),
-        getAllReferralsAdmin(),
+        supabase.from('appointments').select('*', { count: 'exact', head: true }),
+        supabase.from('referrals').select('*', { count: 'exact', head: true }),
         getAllNotifications()
       ]);
 
       setStatsData({
-        appointments: appointmentsRes.status === 'fulfilled' ? (appointmentsRes.value.data || appointmentsRes.value || []).length : 0,
-        referrals: referralsRes.status === 'fulfilled' ? (referralsRes.value.data || referralsRes.value || []).length : 0,
+        appointments: appointmentsRes.status === 'fulfilled' ? (appointmentsRes.value.count ?? 0) : 0,
+        referrals: referralsRes.status === 'fulfilled' ? (referralsRes.value.count ?? 0) : 0,
         notifications: notificationsRes.status === 'fulfilled' ? (notificationsRes.value || []).length : 0
       });
     } catch (error) {

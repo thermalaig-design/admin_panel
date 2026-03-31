@@ -4,7 +4,7 @@ import {
   Stethoscope, FileText, MessageSquare, CheckCircle2, RotateCcw,
   BadgeCheck, AlertTriangle, Loader, MapPin, Mail, Award
 } from 'lucide-react';
-import { updateAppointment, deleteAppointment } from '../services/adminApi';
+import supabase from '../../services/supabaseClient';
 
 const STATUS_CONFIG = {
   pending: { bg: 'bg-amber-50', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
@@ -69,7 +69,8 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
 
     setUpdating(true);
     try {
-      await updateAppointment(currentApp.id, { status: newStatus });
+      const { error: err } = await supabase.from('appointments').update({ status: newStatus }).eq('id', currentApp.id);
+      if (err) throw err;
       setCurrentApp(prev => ({ ...prev, status: newStatus }));
       setSuccessMessage(`Appointment ${newStatus.toLowerCase()} successfully!`);
       setShowSuccessToast(true);
@@ -84,7 +85,8 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
 
   const handleDelete = async () => {
     try {
-      await deleteAppointment(currentApp.id);
+      const { error: err } = await supabase.from('appointments').delete().eq('id', currentApp.id);
+      if (err) throw err;
       setSuccessMessage('Appointment deleted successfully!');
       setShowSuccessToast(true);
       setTimeout(() => {
@@ -105,7 +107,8 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
         ? { status: 'Confirmed', remark: remarkText }
         : { remark: remarkText };
 
-      await updateAppointment(currentApp.id, updateData);
+      const { error: err } = await supabase.from('appointments').update(updateData).eq('id', currentApp.id);
+      if (err) throw err;
 
       setCurrentApp(prev => ({
         ...prev,
@@ -147,7 +150,8 @@ const AppointmentDetailPage = ({ appointment, onBack, onRefresh }) => {
         updateData.remark = rescheduleData.remark.trim();
       }
 
-      await updateAppointment(currentApp.id, updateData);
+      const { error: err } = await supabase.from('appointments').update(updateData).eq('id', currentApp.id);
+      if (err) throw err;
 
       setCurrentApp(prev => ({
         ...prev,
