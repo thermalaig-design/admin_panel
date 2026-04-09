@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import Pagination from '../components/Pagination';
 // All data operations use direct Supabase — no backend needed
 import supabase from '../../services/supabaseClient';
+import { createMember as createMemberAdmin } from '../services/adminApi';
 
 const TrusteeMembersPage = ({ onNavigate }) => {
   const [trusteeMembers, setTrusteeMembers] = useState([]);
@@ -163,7 +164,8 @@ const TrusteeMembersPage = ({ onNavigate }) => {
 
     try {
       const id = item.id || item['S. No.'];
-      const { error: err } = await supabase.from('Members Table').delete().eq('id', id);
+      const idField = item.id ? 'id' : '"S. No."';
+      const { error: err } = await supabase.from('Members Table').delete().eq(idField, id);
       if (err) throw err;
       setTrusteeMembers(trusteeMembers.filter(m => (m.id || m['S. No.']) !== id));
       alert('Trustee member deleted successfully!');
@@ -177,6 +179,7 @@ const TrusteeMembersPage = ({ onNavigate }) => {
     try {
       setLoading(true);
       const id = editingItem?.id || editingItem?.['S. No.'];
+      const idField = editingItem?.id ? 'id' : '"S. No."';
 
       // Prepare member data - determine type based on conversion checkbox
       let memberType = 'Trustee';
@@ -218,15 +221,16 @@ const TrusteeMembersPage = ({ onNavigate }) => {
 
       if (id) {
         // Update existing member
-        const { error: updateErr } = await supabase.from('Members Table').update(memberPayload).eq('id', id);
+        const { error: updateErr } = await supabase.from('Members Table').update(memberPayload).eq(idField, id);
         if (updateErr) throw updateErr;
         setTrusteeMembers(trusteeMembers.map(m =>
           (m.id || m['S. No.']) === id ? { ...m, ...memberPayload } : m
         ));
       } else {
-        // Create new member
-        const { data: newRow, error: insertErr } = await supabase.from('Members Table').insert(memberPayload).select().single();
-        if (insertErr) throw insertErr;
+        // Create new member via backend API (auto-generates "S. No.")
+        const created = await createMemberAdmin(memberPayload);
+        const newRow = created?.data || created;
+        if (!newRow) throw new Error('Member create failed');
         setTrusteeMembers([...trusteeMembers, newRow]);
         if (!membershipNumber && newRow?.['Membership number']) {
           membershipNumber = newRow['Membership number'];
